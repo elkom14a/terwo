@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terwo</title>
+<script>try{var t=localStorage.getItem('terwo-theme');if(t==='light')document.documentElement.classList.add('light');}catch(e){}</script>
+<link rel="stylesheet" href="/tailwind.css">
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/vendor/xterm.css">
+</head>
+<body class="bg-bg text-text antialiased">
+<div class="min-h-screen">
+<!-- ============ SIDEBAR (desktop) ============ -->
+<aside class="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-border bg-surface md:flex">
+  <div class="flex items-center gap-2.5 px-5 pb-4 pt-5 text-[17px] font-bold tracking-tight">
+    <i data-lucide="server" class="h-[22px] w-[22px] text-accent-h"></i><span>Terwo</span>
+  </div>
+  <div class="mx-4 mb-4 flex flex-col gap-1.5 rounded-xl border border-border bg-surface2 p-3 text-xs text-muted" id="sysinfo"><span class="muted">memuat info sistem…</span></div>
+  <nav class="flex flex-1 flex-col gap-1 overflow-y-auto px-3">
+    <button class="tab flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition hover:bg-border/50 hover:text-text active" data-tab="dashboard"><i data-lucide="layout-dashboard" class="h-[19px] w-[19px]"></i><span>Dashboard</span></button>
+    <button class="tab flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition hover:bg-border/50 hover:text-text" data-tab="files"><i data-lucide="folder" class="h-[19px] w-[19px]"></i><span>File Manager</span></button>
+    <button class="tab flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition hover:bg-border/50 hover:text-text" data-tab="term"><i data-lucide="square-terminal" class="h-[19px] w-[19px]"></i><span>Terminal</span></button>
+    <button class="tab flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition hover:bg-border/50 hover:text-text" data-tab="web"><i data-lucide="globe" class="h-[19px] w-[19px]"></i><span>Website</span></button>
+    <button class="tab flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition hover:bg-border/50 hover:text-text" data-tab="db"><i data-lucide="database" class="h-[19px] w-[19px]"></i><span>Database</span></button>
+    <button class="tab flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition hover:bg-border/50 hover:text-text" data-tab="install"><i data-lucide="store" class="h-[19px] w-[19px]"></i><span>Store</span></button>
+    <button class="tab flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition hover:bg-border/50 hover:text-text" data-tab="cron"><i data-lucide="clock" class="h-[19px] w-[19px]"></i><span>Cron</span></button>
+    <button class="tab flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition hover:bg-border/50 hover:text-text" data-tab="backup"><i data-lucide="archive" class="h-[19px] w-[19px]"></i><span>Backup</span></button>
+    <button class="tab flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition hover:bg-border/50 hover:text-text" data-tab="settings"><i data-lucide="settings" class="h-[19px] w-[19px]"></i><span>Settings</span></button>
+  </nav>
+  <div class="flex flex-col gap-2 border-t border-border p-4">
+    <button id="btn-passwd" class="btn-ghost btn-sm"><i data-lucide="key-round" class="h-4 w-4"></i><span>Ganti Password</span></button>
+    <button id="btn-logout" class="btn-ghost btn-sm"><i data-lucide="log-out" class="h-4 w-4"></i><span>Keluar</span></button>
+    <button class="btn-theme btn-ghost btn-sm" title="Mode Terang" aria-label="Ganti tema"><i data-lucide="sun" class="h-4 w-4"></i><span>Mode Terang</span></button>
+  </div>
+</aside>
+<!-- ============ TOPBAR (mobile) ============ -->
+<div class="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur md:hidden">
+  <div class="flex items-center justify-between px-4 pt-3">
+    <div class="flex items-center gap-2 text-[15px] font-bold tracking-tight">
+      <i data-lucide="server" class="h-5 w-5 text-accent-h"></i><span>Terwo</span>
+    </div>
+    <button class="btn-theme btn-icon" title="Mode Terang" aria-label="Ganti tema"><i data-lucide="sun" class="h-4 w-4"></i></button>
+  </div>
+  <nav class="flex gap-2 overflow-x-auto px-4 py-3">
+    <button class="tab flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-surface2 px-3 py-1.5 text-xs font-medium text-muted active" data-tab="dashboard"><i data-lucide="layout-dashboard" class="h-4 w-4"></i><span>Dashboard</span></button>
+    <button class="tab flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-surface2 px-3 py-1.5 text-xs font-medium text-muted" data-tab="files"><i data-lucide="folder" class="h-4 w-4"></i><span>Files</span></button>
+    <button class="tab flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-surface2 px-3 py-1.5 text-xs font-medium text-muted" data-tab="term"><i data-lucide="square-terminal" class="h-4 w-4"></i><span>Terminal</span></button>
+    <button class="tab flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-surface2 px-3 py-1.5 text-xs font-medium text-muted" data-tab="web"><i data-lucide="globe" class="h-4 w-4"></i><span>Web</span></button>
+    <button class="tab flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-surface2 px-3 py-1.5 text-xs font-medium text-muted" data-tab="db"><i data-lucide="database" class="h-4 w-4"></i><span>DB</span></button>
+    <button class="tab flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-surface2 px-3 py-1.5 text-xs font-medium text-muted" data-tab="install"><i data-lucide="store" class="h-4 w-4"></i><span>Store</span></button>
+    <button class="tab flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-surface2 px-3 py-1.5 text-xs font-medium text-muted" data-tab="cron"><i data-lucide="clock" class="h-4 w-4"></i><span>Cron</span></button>
+    <button class="tab flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-surface2 px-3 py-1.5 text-xs font-medium text-muted" data-tab="backup"><i data-lucide="archive" class="h-4 w-4"></i><span>Backup</span></button>
+    <button class="tab flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-surface2 px-3 py-1.5 text-xs font-medium text-muted" data-tab="settings"><i data-lucide="settings" class="h-4 w-4"></i><span>Set</span></button>
+  </nav>
+</div>
+
+<main class="p-4 md:ml-60 md:p-7">
+<div class="mx-auto max-w-[1200px]">
+  <!-- ============ DASHBOARD ============ -->
+  <section id="tab-dashboard" class="tabpane active">
+    <div class="mb-5"><h2 class="flex items-center gap-2.5 text-lg font-semibold tracking-tight"><i data-lucide="layout-dashboard" class="h-5 w-5 text-accent-h"></i>Dashboard</h2></div>
+    <div id="stats-grid" class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5"></div>
+    <h3 class="mb-3 mt-7 flex items-center gap-2 text-[15px] font-semibold"><i data-lucide="globe" class="h-[18px] w-[18px] text-accent-h"></i>Website</h3>
+    <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>Nama</th><th>Tipe</th><th>Port</th><th>Status</th></tr></thead>
+      <tbody id="dash-sites"></tbody>
+    </table>
+    </div>
+    <p class="hint">Statistik diperbarui otomatis tiap 5 detik.</p>
+  </section>
+
+  <!-- ============ FILE MANAGER ============ -->
+  <section id="tab-files" class="tabpane">
+    <div class="mb-5"><h2 class="flex items-center gap-2.5 text-lg font-semibold tracking-tight"><i data-lucide="folder" class="h-5 w-5 text-accent-h"></i>File Manager</h2></div>
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex flex-wrap items-center gap-1.5 text-[13.5px]" id="crumbs"></div>
+      <div class="flex flex-wrap gap-2">
+        <button id="btn-mkdir" class="btn btn-sm"><i data-lucide="folder" class="h-4 w-4"></i>Folder</button>
+        <button id="btn-touch" class="btn btn-sm"><i data-lucide="file-text" class="h-4 w-4"></i>File</button>
+        <button id="btn-upload" class="btn btn-sm"><i data-lucide="upload" class="h-4 w-4"></i>Upload</button>
+        <input type="file" id="file-input" hidden>
+      </div>
+    </div>
+    <div id="file-error" class="err mb-2"></div>
+    <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>Nama</th><th>Ukuran</th><th>Diubah</th><th>Aksi</th></tr></thead>
+      <tbody id="file-list"></tbody>
+    </table>
+    </div>
+  </section>
+
+  <!-- ============ TERMINAL ============ -->
+  <section id="tab-term" class="tabpane">
+    <div class="mb-5"><h2 class="flex items-center gap-2.5 text-lg font-semibold tracking-tight"><i data-lucide="square-terminal" class="h-5 w-5 text-accent-h"></i>Terminal</h2></div>
+    <div class="mb-3 flex flex-wrap items-center gap-2.5">
+      <span id="term-status" class="muted text-sm">terputus</span>
+      <button id="btn-term-conn" class="btn btn-sm"><i data-lucide="power" class="h-4 w-4"></i>Sambungkan</button>
+      <button id="btn-term-clear" class="btn-ghost btn-sm"><i data-lucide="x" class="h-4 w-4"></i>Bersihkan</button>
+      <button id="btn-term-paste" class="btn-ghost btn-sm"><i data-lucide="clipboard-paste" class="h-4 w-4"></i>Paste</button>
+    </div>
+    <div id="term-box"></div>
+    <p class="hint">Klik kanan di terminal = paste. Ukuran terminal menyesuaikan otomatis.</p>
+  </section>
+
+  <!-- ============ WEBSITE ============ -->
+  <section id="tab-web" class="tabpane">
+    <div class="mb-5"><h2 class="flex items-center gap-2.5 text-lg font-semibold tracking-tight"><i data-lucide="globe" class="h-5 w-5 text-accent-h"></i>Website</h2></div>
+    <div class="mb-4 flex flex-wrap items-center gap-2">
+      <button class="subtab active" data-stype="node">Node.js</button>
+      <button class="subtab" data-stype="php">PHP</button>
+      <button class="subtab" data-stype="static">Static</button>
+      <button class="subtab" data-stype="go">Go</button>
+      <button id="site-add" class="btn btn-sm ml-1"><i data-lucide="plus" class="h-4 w-4"></i><span>Tambah (Node.js)</span></button>
+    </div>
+    <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>Nama</th><th>Path</th><th>Port</th><th>Status</th><th>Aksi</th></tr></thead>
+      <tbody id="site-list"></tbody>
+    </table>
+    </div>
+    <p class="hint">Node.js: menjalankan <code>node &lt;file&gt;</code> dengan env <code>PORT</code> otomatis diisi. PHP: butuh <code>pkg install php</code>, dijalankan via <code>php -S 127.0.0.1:PORT</code>. Static: butuh python, serve folder via <code>python3 -m http.server</code>. Go: butuh Go, menjalankan <code>go run .</code> di folder project dengan env <code>PORT</code> otomatis diisi.</p>
+    <h3 class="mb-3 mt-7 flex items-center gap-2 text-[15px] font-semibold"><i data-lucide="repeat" class="h-[18px] w-[18px] text-accent-h"></i>Reverse Proxy (Nginx)</h3>
+    <div class="card">
+      <div class="frow">
+        <span id="nginx-status" class="muted text-sm">memeriksa…</span>
+        <button id="nginx-start" class="btn-ghost btn-sm"><i data-lucide="play" class="h-4 w-4"></i>Start</button>
+        <button id="nginx-stop" class="btn-ghost btn-sm"><i data-lucide="square" class="h-4 w-4"></i>Stop</button>
+        <button id="nginx-reload" class="btn-ghost btn-sm"><i data-lucide="rotate-cw" class="h-4 w-4"></i>Reload</button>
+      </div>
+      <div class="frow">
+        <label class="lbl">Nama<input id="px-name" class="inp" placeholder="mis. blog"></label>
+        <label class="lbl">Listen port<input id="px-port" class="inp" type="number" value="8080"></label>
+        <label class="lbl">Domain<input id="px-domain" class="inp" placeholder="(opsional)"></label>
+        <label class="lbl">Target port<input id="px-target" class="inp" type="number" placeholder="mis. 3000"></label>
+      </div>
+      <div class="frow">
+        <button id="px-add" class="btn btn-sm"><i data-lucide="plus" class="h-4 w-4"></i>Tambah Proxy</button>
+        <span id="px-err" class="err"></span>
+      </div>
+      <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>Nama</th><th>Listen</th><th>Domain</th><th>Target</th><th>Aksi</th></tr></thead>
+        <tbody id="px-list"></tbody>
+      </table>
+      </div>
+      <p class="hint">Proxy meneruskan ke website di port target. Catatan: Termux tidak bisa bind port &lt;1024 tanpa root.</p>
+    </div>
+  </section>
+  <!-- ============ DATABASE ============ -->
+  <section id="tab-db" class="tabpane">
+    <div class="mb-5"><h2 class="flex items-center gap-2.5 text-lg font-semibold tracking-tight"><i data-lucide="database" class="h-5 w-5 text-accent-h"></i>Database</h2></div>
+    <div class="mb-4 flex flex-wrap items-center gap-2">
+      <button class="subtab active" data-dtype="mysql">MySQL</button>
+      <button class="subtab" data-dtype="postgres">PostgreSQL</button>
+    </div>
+    <div class="card mb-4">
+      <div class="frow">
+        <label class="lbl">Host<input id="db-host" class="inp"></label>
+        <label class="lbl">Port<input id="db-port" class="inp" type="number"></label>
+        <label class="lbl">User<input id="db-user" class="inp"></label>
+        <label class="lbl">Password<input id="db-pass" class="inp" type="password"></label>
+        <label class="lbl">Database<input id="db-name" class="inp" placeholder="(opsional)"></label>
+      </div>
+      <div class="frow">
+        <button id="db-test" class="btn-ghost btn-sm"><i data-lucide="plug" class="h-4 w-4"></i>Test Koneksi</button>
+        <button id="db-connect" class="btn btn-sm"><i data-lucide="save" class="h-4 w-4"></i>Simpan &amp; Konek</button>
+        <button id="db-disconnect" class="btn-ghost btn-sm"><i data-lucide="x" class="h-4 w-4"></i>Putus</button>
+        <span id="db-status" class="muted text-sm">Belum konek</span>
+      </div>
+      <p id="db-err" class="err"></p>
+    </div>
+    <div id="db-browser" class="hidden">
+      <div class="grid gap-3 lg:grid-cols-[230px_1fr]">
+        <div class="card !p-4">
+          <h4 class="mb-2 flex items-center gap-2 text-sm font-semibold"><i data-lucide="database" class="h-4 w-4 text-accent-h"></i>Database</h4>
+          <div id="db-list"></div>
+          <h4 class="mb-2 mt-4 flex items-center gap-2 text-sm font-semibold"><i data-lucide="table" class="h-4 w-4 text-accent-h"></i>Tabel</h4>
+          <div id="db-tables"></div>
+        </div>
+        <div class="card !p-4">
+          <h4 class="mb-2 flex items-center gap-2 text-sm font-semibold"><i data-lucide="square-terminal" class="h-4 w-4 text-accent-h"></i>Query SQL</h4>
+          <textarea id="db-sql" class="inp font-mono" placeholder="SELECT * FROM nama_tabel LIMIT 10"></textarea>
+          <button id="db-run" class="btn btn-sm mt-2"><i data-lucide="play" class="h-4 w-4"></i>Jalankan</button>
+          <div id="db-result" class="mt-3"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ STORE ============ -->
+  <section id="tab-install" class="tabpane">
+    <div class="mb-5"><h2 class="flex items-center gap-2.5 text-lg font-semibold tracking-tight"><i data-lucide="store" class="h-5 w-5 text-accent-h"></i>Store</h2></div>
+    <p class="muted mb-4 text-sm">Install paket langsung di Termux via pkg/npm. Klik Install, log tampil live.</p>
+    <div id="install-grid" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
+  </section>
+
+  <!-- ============ CRON ============ -->
+  <section id="tab-cron" class="tabpane">
+    <div class="mb-5"><h2 class="flex items-center gap-2.5 text-lg font-semibold tracking-tight"><i data-lucide="clock" class="h-5 w-5 text-accent-h"></i>Cron</h2></div>
+    <div class="card">
+      <div class="frow">
+        <span id="cron-status" class="muted text-sm">memeriksa…</span>
+        <button id="cron-start" class="btn-ghost btn-sm"><i data-lucide="play" class="h-4 w-4"></i>Start crond</button>
+        <button id="cron-stop" class="btn-ghost btn-sm"><i data-lucide="square" class="h-4 w-4"></i>Stop</button>
+      </div>
+      <h4 class="mb-2 mt-4 text-sm font-semibold">Tambah Job</h4>
+      <div class="frow">
+        <label class="lbl">Nama<input id="cj-name" class="inp" placeholder="mis. backup-harian"></label>
+        <label class="lbl">Preset
+          <select id="cj-preset" class="inp">
+            <option value="* * * * *">Setiap menit</option>
+            <option value="0 * * * *">Setiap jam</option>
+            <option value="0 0 * * *">Setiap hari</option>
+            <option value="0 0 * * 0">Setiap minggu</option>
+            <option value="0 0 1 * *">Setiap bulan</option>
+            <option value="custom">Custom…</option>
+          </select>
+        </label>
+        <label class="lbl">Jadwal custom<input id="cj-sched" class="inp" placeholder="* * * * *" disabled></label>
+      </div>
+      <div class="frow">
+        <label class="lbl">Command<input id="cj-cmd" class="inp font-mono" placeholder="mis. /data/data/com.termux/files/usr/bin/php /root/backup.php"></label>
+      </div>
+      <div class="frow">
+        <button id="cj-add" class="btn btn-sm"><i data-lucide="plus" class="h-4 w-4"></i>Tambah Job</button>
+        <span id="cj-err" class="err"></span>
+      </div>
+      <h4 class="mb-2 mt-4 text-sm font-semibold">Daftar Job</h4>
+      <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>Nama</th><th>Jadwal</th><th>Command</th><th>Status</th><th>Aksi</th></tr></thead>
+        <tbody id="cj-list"></tbody>
+      </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BACKUP ============ -->
+  <section id="tab-backup" class="tabpane">
+    <div class="mb-5"><h2 class="flex items-center gap-2.5 text-lg font-semibold tracking-tight"><i data-lucide="archive" class="h-5 w-5 text-accent-h"></i>Backup</h2></div>
+    <div class="card">
+      <h4 class="mb-2 text-sm font-semibold">Buat Backup</h4>
+      <div class="frow">
+        <label class="lbl">Nama<input id="bk-name" class="inp" placeholder="(otomatis: backup-YYYYMMDD-HHmmss)"></label>
+        <label class="lbl">Tipe
+          <select id="bk-type" class="inp">
+            <option value="folder">Folder</option>
+            <option value="mysql">Database MySQL</option>
+            <option value="postgres">Database PostgreSQL</option>
+          </select>
+        </label>
+        <label class="lbl">Source<input id="bk-source" class="inp" placeholder="path folder / nama database"></label>
+      </div>
+      <div class="frow">
+        <button id="bk-create" class="btn btn-sm"><i data-lucide="plus" class="h-4 w-4"></i>Buat Backup</button>
+        <span id="bk-err" class="err"></span>
+      </div>
+      <h4 class="mb-2 mt-4 text-sm font-semibold">Daftar Backup</h4>
+      <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>Nama</th><th>Tipe</th><th>Source</th><th>Ukuran</th><th>Aksi</th></tr></thead>
+        <tbody id="bk-list"></tbody>
+      </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SETTINGS ============ -->
+  <section id="tab-settings" class="tabpane">
+    <div class="mb-5"><h2 class="flex items-center gap-2.5 text-lg font-semibold tracking-tight"><i data-lucide="settings" class="h-5 w-5 text-accent-h"></i>Settings</h2></div>
+    <div class="card mb-4">
+      <h4 class="mb-2 flex items-center gap-2 text-sm font-semibold"><i data-lucide="user" class="h-4 w-4 text-accent-h"></i>Akun</h4>
+      <p class="mb-3 text-sm">Username aktif: <b id="set-uname">…</b></p>
+      <div class="frow">
+        <label class="lbl">Username baru<input id="set-newuser" class="inp" placeholder="3-32 karakter"></label>
+      </div>
+      <div class="frow">
+        <button id="set-user-save" class="btn btn-sm"><i data-lucide="save" class="h-4 w-4"></i>Ganti Username</button>
+        <span id="set-user-err" class="err"></span>
+      </div>
+      <div class="frow">
+        <label class="lbl">Password lama<input id="set-pw-old" class="inp" type="password"></label>
+        <label class="lbl">Password baru<input id="set-pw-new" class="inp" type="password"></label>
+        <label class="lbl">Konfirmasi<input id="set-pw-conf" class="inp" type="password"></label>
+      </div>
+      <div class="frow">
+        <button id="set-pw-save" class="btn btn-sm"><i data-lucide="key-round" class="h-4 w-4"></i>Ganti Password</button>
+        <span id="set-pw-err" class="err"></span>
+      </div>
+    </div>
+    <div class="card mb-4">
+      <h4 class="mb-2 flex items-center gap-2 text-sm font-semibold"><i data-lucide="bell" class="h-4 w-4 text-accent-h"></i>Notifikasi Telegram</h4>
+      <div class="frow">
+        <label class="lbl">Bot token<input id="set-tg-token" class="inp" placeholder="123456:ABC..."></label>
+        <label class="lbl">Chat ID<input id="set-tg-chat" class="inp" placeholder="123456789"></label>
+      </div>
+      <div class="frow">
+        <label class="lbl-check"><input id="set-tg-on" type="checkbox" class="h-4 w-4 accent-accent">Aktifkan notifikasi</label>
+        <label class="lbl-check"><input id="set-tg-cmd" type="checkbox" class="h-4 w-4 accent-accent">Balas perintah bot (/ram dll)</label>
+        <button id="set-tg-save" class="btn btn-sm"><i data-lucide="save" class="h-4 w-4"></i>Simpan</button>
+        <button id="set-tg-test" class="btn-ghost btn-sm"><i data-lucide="send" class="h-4 w-4"></i>Test</button>
+        <span id="set-tg-err" class="err"></span>
+      </div>
+      <p class="hint">Notifikasi dikirim saat install selesai dan saat website down/pulih.</p>
+    </div>
+    <div class="card">
+      <h4 class="mb-2 flex items-center gap-2 text-sm font-semibold"><i data-lucide="info" class="h-4 w-4 text-accent-h"></i>Panel</h4>
+      <p class="mb-3 text-sm">Versi: <b id="set-ver">…</b></p>
+      <div class="frow">
+        <button id="set-logout-all" class="btn-ghost btn-sm"><i data-lucide="log-out" class="h-4 w-4"></i>Logout semua sesi</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+</main>
+</div>
+<!-- modal editor -->
+<div id="editor-modal" class="fixed inset-0 z-50 flex hidden items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+  <div class="w-full max-w-2xl rounded-2xl border border-border bg-surface p-5 shadow-2xl">
+    <div class="mb-4 flex items-center justify-between"><span id="editor-title" class="font-semibold">Edit file</span><button id="editor-close" class="btn-icon"><i data-lucide="x" class="h-4 w-4"></i></button></div>
+    <textarea id="editor-text" spellcheck="false" class="inp h-[55vh] font-mono text-[13px]"></textarea>
+    <div class="mt-4 flex justify-end">
+      <button id="editor-save" class="btn btn-sm"><i data-lucide="save" class="h-4 w-4"></i>Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- modal ganti password -->
+<div id="passwd-modal" class="fixed inset-0 z-50 flex hidden items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+  <div class="w-full max-w-md rounded-2xl border border-border bg-surface p-5 shadow-2xl">
+    <div class="mb-4 flex items-center justify-between"><span class="font-semibold">Ganti Password</span><button id="passwd-close" class="btn-icon"><i data-lucide="x" class="h-4 w-4"></i></button></div>
+    <div class="flex flex-col gap-3">
+      <input type="password" id="pw-old" class="inp" placeholder="Password lama">
+      <input type="password" id="pw-new" class="inp" placeholder="Password baru (min 6 karakter)">
+    </div>
+    <div class="mt-4 flex justify-end"><button id="pw-save" class="btn btn-sm"><i data-lucide="save" class="h-4 w-4"></i>Simpan</button></div>
+    <p id="pw-err" class="err mt-2"></p>
+  </div>
+</div>
+
+<!-- modal tambah website -->
+<div id="site-modal" class="fixed inset-0 z-50 flex hidden items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+  <div class="w-full max-w-md rounded-2xl border border-border bg-surface p-5 shadow-2xl">
+    <div class="mb-4 flex items-center justify-between"><span id="site-modal-title" class="font-semibold">Tambah Website</span><button id="site-close" class="btn-icon"><i data-lucide="x" class="h-4 w-4"></i></button></div>
+    <div class="flex flex-col gap-3">
+      <input id="site-name" class="inp" placeholder="Nama website">
+      <input id="site-path" class="inp" placeholder="Path">
+      <input id="site-port" class="inp" type="number" placeholder="Port (mis. 3000)">
+    </div>
+    <div class="mt-4 flex justify-end"><button id="site-save" class="btn btn-sm"><i data-lucide="save" class="h-4 w-4"></i>Simpan</button></div>
+    <p id="site-err" class="err mt-2"></p>
+  </div>
+</div>
+
+<!-- modal log install -->
+<div id="install-modal" class="fixed inset-0 z-50 flex hidden items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+  <div class="w-full max-w-2xl rounded-2xl border border-border bg-surface p-5 shadow-2xl">
+    <div class="mb-4 flex items-center justify-between"><span id="install-title" class="font-semibold">Install</span><button id="install-close" class="btn-icon"><i data-lucide="x" class="h-4 w-4"></i></button></div>
+    <pre id="install-body" class="max-h-[60vh] overflow-auto rounded-xl border border-border bg-bg p-3 font-mono text-xs"></pre>
+  </div>
+</div>
+<!-- modal log -->
+<div id="logs-modal" class="fixed inset-0 z-50 flex hidden items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+  <div class="w-full max-w-2xl rounded-2xl border border-border bg-surface p-5 shadow-2xl">
+    <div class="mb-4 flex items-center justify-between"><span id="logs-title" class="font-semibold">Log</span><button id="logs-close" class="btn-icon"><i data-lucide="x" class="h-4 w-4"></i></button></div>
+    <pre id="logs-body" class="max-h-[60vh] overflow-auto rounded-xl border border-border bg-bg p-3 font-mono text-xs"></pre>
+  </div>
+</div>
+
+<!-- modal preview gambar -->
+<div id="preview-modal" class="fixed inset-0 z-50 flex hidden items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+  <div class="w-full max-w-2xl rounded-2xl border border-border bg-surface p-5 shadow-2xl">
+    <div class="mb-4 flex items-center justify-between"><span id="preview-title" class="font-semibold">Preview</span><button id="preview-close" class="btn-icon"><i data-lucide="x" class="h-4 w-4"></i></button></div>
+    <img id="preview-img" class="max-h-[70vh] w-full object-contain" alt="preview">
+  </div>
+</div>
+
+<script src="/vendor/xterm.js"></script>
+<script src="/vendor/xterm-addon-fit.js"></script>
+<script src="/vendor/lucide.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

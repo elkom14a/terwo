@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Login — Terwo</title>
+<script>try{var t=localStorage.getItem('terwo-theme');if(t==='light')document.documentElement.classList.add('light');}catch(e){}</script>
+<link rel="stylesheet" href="/tailwind.css">
+</head>
+<body class="bg-bg text-text antialiased">
+<div class="relative flex min-h-screen items-center justify-center p-4">
+  <button class="btn-theme btn-icon absolute right-4 top-4" title="Mode Terang" aria-label="Ganti tema"><i data-lucide="sun" class="h-4 w-4"></i></button>
+  <div class="card w-full max-w-[340px]">
+    <h1 class="flex items-center justify-center gap-2 text-xl font-bold tracking-tight">
+      <i data-lucide="server" class="h-6 w-6 text-accent-h"></i>Terwo
+    </h1>
+    <p class="mb-5 mt-1 text-center text-xs text-muted">Termux Web Operation</p>
+    <div class="flex flex-col gap-3">
+      <input id="u" class="inp" placeholder="Username" autocomplete="username">
+      <input id="p" class="inp" type="password" placeholder="Password" autocomplete="current-password">
+      <button id="go" class="btn w-full">Masuk</button>
+    </div>
+    <p id="e" class="err mt-3"></p>
+  </div>
+</div>
+<script src="/vendor/lucide.min.js"></script>
+<script>
+// ---------- tema dark/light (tersimpan di localStorage 'terwo-theme') ----------
+function getTheme() {
+  try { return localStorage.getItem('terwo-theme') === 'light' ? 'light' : 'dark'; }
+  catch (e) { return 'dark'; }
+}
+function updateThemeUI(t) {
+  var icon = t === 'light' ? 'moon' : 'sun';
+  var label = t === 'light' ? 'Mode Gelap' : 'Mode Terang';
+  document.querySelectorAll('.btn-theme').forEach(function (b) {
+    b.innerHTML = '<i data-lucide="' + icon + '" class="h-4 w-4"></i>';
+    b.setAttribute('title', label);
+    b.setAttribute('aria-label', label);
+  });
+  try { lucide.createIcons(); } catch (e) {}
+}
+function applyTheme(t) {
+  document.documentElement.classList.toggle('light', t === 'light');
+  try { localStorage.setItem('terwo-theme', t); } catch (e) {}
+  updateThemeUI(t);
+}
+document.querySelectorAll('.btn-theme').forEach(function (b) {
+  b.addEventListener('click', function () { applyTheme(getTheme() === 'light' ? 'dark' : 'light'); });
+});
+updateThemeUI(getTheme());
+// ---------- login ----------
+lucide.createIcons();
+const u = document.getElementById('u'), p = document.getElementById('p'), e = document.getElementById('e');
+async function login() {
+  e.textContent = '';
+  const r = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: u.value, password: p.value }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (j.ok) location.href = '/app.html';
+  else e.textContent = j.error || 'Login gagal';
+}
+document.getElementById('go').addEventListener('click', login);
+p.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') login(); });
+</script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+/* Token warna = indirection ke var(--c-*), sehingga tema dark/light
+   bisa diganti saat runtime via :root / html.light */
+@theme {
+  --color-bg: var(--c-bg);
+  --color-surface: var(--c-surface);
+  --color-surface2: var(--c-surface2);
+  --color-accent: var(--c-accent);
+  --color-accent-h: var(--c-accent-h);
+  --color-text: var(--c-text);
+  --color-muted: var(--c-muted);
+  --color-ok: var(--c-ok);
+  --color-err: var(--c-err);
+  --color-warn: var(--c-warn);
+  --color-border: var(--c-border);
+}
+
+/* Tema gelap = default */
+:root {
+  color-scheme: dark;
+  --c-bg: #0a0e14;
+  --c-surface: #101724;
+  --c-surface2: #16202f;
+  --c-accent: #6366f1;
+  --c-accent-h: #818cf8;
+  --c-text: #e8eef6;
+  --c-muted: #8b98a9;
+  --c-ok: #22c55e;
+  --c-err: #ef4444;
+  --c-warn: #f59e0b;
+  --c-border: rgba(255, 255, 255, 0.1);
+}
+
+/* Tema terang */
+html.light {
+  color-scheme: light;
+  --c-bg: #f6f8fb;
+  --c-surface: #ffffff;
+  --c-surface2: #eef2f7;
+  --c-text: #0f172a;
+  --c-muted: #64748b;
+  --c-accent: #4f46e5;
+  --c-accent-h: #6366f1;
+  --c-ok: #16a34a;
+  --c-err: #dc2626;
+  --c-warn: #d97706;
+  --c-border: rgba(15, 23, 42, 0.12);
+}
+
+/* Komponen UI panel — dipakai di HTML statis & template JS (nama class literal) */
+@layer components {
+  .btn { @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[10px] bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-h disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-sm { @apply rounded-lg px-3 py-1.5 text-[13px]; }
+  .btn-ghost { @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border border-border bg-border/30 px-4 py-2 text-sm font-medium text-muted transition hover:bg-border hover:text-text; }
+  .btn-danger { @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border border-err/30 bg-err/10 px-4 py-2 text-sm font-medium text-err transition hover:bg-err/20; }
+  .btn-icon { @apply inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-muted transition hover:bg-border hover:text-text; }
+  .mini { @apply inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-border bg-surface2 text-muted transition hover:bg-border hover:text-text; }
+  .inp { @apply w-full rounded-[10px] border border-border bg-bg px-3 py-2 text-sm font-normal normal-case tracking-normal text-text placeholder:text-muted/50 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/25 disabled:opacity-60; }
+  .lbl { @apply flex min-w-[140px] flex-1 flex-col gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted; }
+  .lbl-check { @apply flex cursor-pointer items-center gap-2 text-sm font-normal normal-case tracking-normal text-text; }
+  .card { @apply rounded-2xl border border-border bg-surface p-5 shadow-xl shadow-black/20; }
+  .badge { @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold; }
+  .badge-ok { @apply border-ok/30 bg-ok/10 text-ok; }
+  .badge-off { @apply border-border bg-border/50 text-muted; }
+  .badge-warn { @apply border-warn/30 bg-warn/10 text-warn; }
+  .tbl { @apply w-full text-sm; }
+  .tbl th { @apply whitespace-nowrap px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-muted; }
+  .tbl td { @apply border-t border-border/50 px-4 py-2.5 align-middle; }
+  .tbl tbody tr { @apply transition hover:bg-border/30; }
+  .tbl-wrap { @apply overflow-x-auto rounded-2xl border border-border bg-surface; }
+  .frow { @apply mb-3 flex flex-wrap items-end gap-3; }
+  .muted { @apply text-muted; }
+  .err { @apply text-sm text-err; }
+  .hint { @apply mt-2 text-xs text-muted; }
+  .crumb { @apply inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface2 px-2.5 py-1 text-[13px] font-normal normal-case tracking-normal text-text transition hover:border-accent hover:text-accent-h; }
+  .row-actions { @apply flex flex-wrap gap-1.5; }
+  .list-item { @apply block w-full cursor-pointer rounded-lg px-3 py-1.5 text-left text-[13px] text-muted transition hover:bg-surface2 hover:text-text; }
+  .list-item.active { @apply bg-accent/15 text-text; }
+  .subtab { @apply cursor-pointer rounded-full border border-border bg-surface px-4 py-1.5 text-[13px] text-muted transition hover:text-text; }
+  .subtab.active { @apply border-accent bg-accent/15 text-text; }
+}
