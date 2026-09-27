@@ -130,20 +130,6 @@ function confirmDialog({ title, message, okText, danger = true, icon = 'alert-tr
   });
 }
 
-// ---------- sysinfo ----------
-(async () => {
-  try {
-    const j = await (await api('/api/sysinfo')).json();
-    const row = (icn, txt) => '<span class="flex items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">' + ic(icn, 'h-3.5 w-3.5 text-accent-h') + txt + '</span>';
-    document.getElementById('sysinfo').innerHTML =
-      row('server', esc(j.hostname)) +
-      row('timer', fmtUptime(j.uptime)) +
-      row('memory-stick', fmtSize(j.totalmem - j.freemem) + ' / ' + fmtSize(j.totalmem)) +
-      row('folder', esc(j.root));
-    refreshIcons();
-  } catch (e) { console.error('[sysinfo] gagal:', e); }
-})();
-
 // ---------- logout ----------
 document.getElementById('btn-logout').addEventListener('click', async () => {
   const ok = await confirmDialog({ title: 'Log out?', message: 'End this session and return to the login page.', okText: 'Log out', danger: false, icon: 'log-out' });

@@ -466,7 +466,7 @@ const INSTALL_ITEMS = [
 const installRuns = new Map(); // id -> { child, logs[], running, exitCode }
 function execCheck(cmd) {
   return new Promise((resolve) => {
-    exec(cmd, { shell: SHELL, timeout: 8000 }, (err) => resolve(!err));
+    exec(cmd, { shell: SHELL, env: EXEC_ENV, timeout: 8000 }, (err) => resolve(!err));
   });
 }
 
@@ -896,16 +896,27 @@ function apiLogoutAll(res) {
   sendJson(res, 200, { ok: true });
 }
 // ================= Helper exec umum =================
+const TERMUX_PREFIX = process.env.PREFIX || '/data/data/com.termux/files/usr';
 // bash tidak selalu ada di Termux; pakai bash bila tersedia, kalau tidak sh bawaan
 const SHELL = (function () {
-  const cands = ['/bin/bash', (process.env.PREFIX || '/data/data/com.termux/files/usr') + '/bin/bash'];
+  const cands = ['/bin/bash', TERMUX_PREFIX + '/bin/bash'];
   for (const c of cands) { try { if (fs.existsSync(c)) return c; } catch (e) {} }
   return undefined; // fallback: /bin/sh bawaan exec
+})();
+// pm2 (apalagi saat start otomatis waktu boot) kerap kehilangan PATH Termux,
+// sehingga termux-battery-status dkk "not found" padahal sudah terpasang.
+const EXEC_ENV = (function () {
+  const env = Object.assign({}, process.env);
+  const want = [TERMUX_PREFIX + '/bin', '/system/bin', '/system/xbin'];
+  const cur = (env.PATH || '').split(path.delimiter).filter(Boolean);
+  for (const d of want) if (!cur.includes(d)) cur.push(d);
+  env.PATH = cur.join(path.delimiter);
+  return env;
 })();
 function sq(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'"; }
 function execOk(cmd, timeout) {
   return new Promise((resolve) => {
-    exec(cmd, { shell: SHELL, timeout: timeout || 10000 }, (err, stdout) => {
+    exec(cmd, { shell: SHELL, env: EXEC_ENV, timeout: timeout || 10000 }, (err, stdout) => {
       resolve({ ok: !err, out: String(stdout || '') + (err ? err.message : '') });
     });
   });
@@ -914,7 +925,7 @@ function execTimeout(cmd, opts) {
   opts = opts || {};
   return new Promise((resolve, reject) => {
     exec(cmd, {
-      shell: SHELL, timeout: opts.timeout || 30000, cwd: opts.cwd || HOME, maxBuffer: 50 * 1024 * 1024,
+      shell: SHELL, env: EXEC_ENV, timeout: opts.timeout || 30000, cwd: opts.cwd || HOME, maxBuffer: 50 * 1024 * 1024,
     }, (err, stdout, stderr) => {
       if (err) reject(new Error(String(stderr || err.message || 'Failed').slice(-800)));
       else resolve(String(stdout || ''));
@@ -941,26 +952,87 @@ function cpuCores() {
   } catch (e) {}
   return 0;
 }
-// Butuh paket termux-api DAN aplikasi Termux:API terpasang
-let batteryUnavailable = false;
+// Butuh paket termux-api DAN aplikasi Termux:API terpasang.
+// Kalau perintahnya belum ada kita berhenti mencoba sebentar (biar tidak spawn
+// proses gagal tiap 5 detik), tapi WAJIB dicoba lagi berkala supaya instalasi
+// baru langsung terdeteksi tanpa perlu restart panel.
+const BATTERY_RETRY_MS = 60 * 1000;
+let batteryRetryAt = 0;
+let batteryLastError = '';   // alasan terakhir, dipakai /api/battery/debug
+// Panggil lewat jalur absolut bila ada, supaya tidak bergantung pada PATH
+function batteryCmd() {
+  const abs = TERMUX_PREFIX + '/bin/termux-battery-status';
+  try { if (fs.existsSync(abs)) return sq(abs); } catch (e) {}
+  return 'termux-battery-status';
+}
 async function getBattery() {
-  if (batteryUnavailable) return null;
+  // tetap kembalikan alasannya, jangan null polos
+  if (batteryRetryAt && Date.now() < batteryRetryAt) {
+    return { error: batteryLastError || 'pkg install termux-api' };
+  }
   try {
-    const raw = await execTimeout('termux-battery-status', { timeout: 5000 });
+    // 8 dtk: panggilan pertama bisa lambat karena menunggu izin Android
+    const raw = await execTimeout(batteryCmd(), { timeout: 8000 });
     const b = JSON.parse(raw);
-    if (b && b.percentage != null) return { percentage: b.percentage, status: b.status || '' };
-    return { error: 'Termux:API tidak merespons' };
+    if (b && b.percentage != null) {
+      batteryRetryAt = 0;
+      batteryLastError = '';
+      return { percentage: b.percentage, status: b.status || '' };
+    }
+    batteryLastError = 'Termux:API tidak merespons';
+    return { error: batteryLastError };
   } catch (e) {
     const msg = String((e && e.message) || '');
     // command not found -> jangan coba lagi tiap 5 detik
-    if (/not found|ENOENT/i.test(msg)) {
-      batteryUnavailable = true;
-      return { error: 'pkg install termux-api' };
+    if (/not found|not recognized|ENOENT|command not found/i.test(msg)) {
+      batteryRetryAt = Date.now() + BATTERY_RETRY_MS;
+      // Kalau binari-nya ADA tapi tetap "not found", yang salah PATH-nya
+      // (panel dijalankan tanpa environment Termux), bukan paketnya.
+      let ada = false;
+      try { ada = fs.existsSync(TERMUX_PREFIX + '/bin/termux-battery-status'); } catch (e) {}
+      batteryLastError = ada ? 'PATH Termux tidak terbaca — restart via pm2' : 'pkg install termux-api';
+      return { error: batteryLastError };
     }
     // terpasang tapi app Termux:API belum ada / izin ditolak -> perintah menggantung lalu timeout
-    return { error: /timed out|ETIMEDOUT/i.test(msg) ? 'Butuh app Termux:API' : 'Baterai tidak tersedia' };
+    batteryLastError = /timed out|ETIMEDOUT/i.test(msg) ? 'Butuh app Termux:API' : ('Gagal: ' + msg.slice(0, 120));
+    return { error: batteryLastError };
   }
 }
+// Diagnostik baterai: jalankan tiap langkah dan laporkan apa adanya
+async function apiBatteryDebug(res) {
+  const steps = [];
+  const run = async (label, cmd, timeout) => {
+    const t0 = Date.now();
+    try {
+      const out = await execTimeout(cmd, { timeout: timeout || 8000 });
+      steps.push({ step: label, cmd, ok: true, ms: Date.now() - t0, out: String(out).slice(0, 400).trim() });
+      return out;
+    } catch (e) {
+      steps.push({ step: label, cmd, ok: false, ms: Date.now() - t0, error: String((e && e.message) || e).slice(0, 400).trim() });
+      return null;
+    }
+  };
+
+  await run('1. Paket termux-api terpasang?', 'command -v termux-battery-status || echo TIDAK_ADA');
+  await run('2. Daftar paket', 'pkg list-installed 2>/dev/null | grep -i termux-api || echo TIDAK_TERPASANG');
+  await run('3. Ambil status baterai (10 dtk)', 'termux-battery-status', 10000);
+  await run('4. Aplikasi Termux:API terpasang?',
+    'pm list packages 2>/dev/null | grep com.termux.api || echo APP_TIDAK_ADA');
+
+  sendJson(res, 200, {
+    shell: SHELL || '/bin/sh (default)',
+    batteryRetryAt: batteryRetryAt ? new Date(batteryRetryAt).toISOString() : null,
+    batteryLastError,
+    hasil: await getBattery(),
+    steps,
+    petunjuk: [
+      'Langkah 1/2 gagal -> jalankan: pkg install termux-api',
+      'Langkah 4 APP_TIDAK_ADA -> pasang APK Termux:API dari F-Droid (HARUS sumber yang sama dengan Termux)',
+      'Langkah 3 menggantung/timeout -> buka Termux, jalankan termux-battery-status manual lalu izinkan popup permission',
+    ],
+  });
+}
+
 async function getStatsData() {
   const load = os.loadavg();
   const total = os.totalmem(), free = os.freemem();
@@ -1457,6 +1529,7 @@ async function handleRequest(req, res) {
     if (req.method === 'POST' && p === '/api/settings/test-telegram') return apiTelegramTest(res);
     // dashboard
     if (req.method === 'GET' && p === '/api/stats') return apiStats(res);
+    if (req.method === 'GET' && p === '/api/battery/debug') return apiBatteryDebug(res);
     // nginx reverse proxy
     if (req.method === 'GET' && p === '/api/nginx/status') return apiNginxStatus(res);
     if (req.method === 'POST' && p === '/api/nginx/service') return apiNginxService(req, res);
