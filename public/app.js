@@ -27,7 +27,17 @@ function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 // ---------- lucide icons ----------
-function refreshIcons() { try { if (window.lucide) lucide.createIcons(); } catch (e) {} }
+function refreshIcons() {
+  try {
+    if (window.lucide) { lucide.createIcons(); return; }
+  } catch (e) {}
+  // lucide belum termuat: coba lagi setelah window load, jangan diam-diam gagal
+  if (document.readyState !== 'complete') {
+    window.addEventListener('load', function () {
+      try { if (window.lucide) lucide.createIcons(); } catch (e) {}
+    }, { once: true });
+  }
+}
 function ic(n, c) { return '<i data-lucide="' + n + '" class="' + (c || 'h-4 w-4') + '"></i>'; }
 function dot() { return '<span class="h-1.5 w-1.5 rounded-full bg-current"></span>'; }
 // ---------- dark/light theme (stored in localStorage 'terwo-theme') ----------
@@ -76,12 +86,13 @@ function showTab(id, push) {
   if (id === 'backup') loadBackups();
   if (id === 'settings') loadSettings();
   if (push) history.pushState({ tab: id }, '', '/' + TAB_SLUGS[id]);
+  refreshIcons();
 }
 document.querySelectorAll('.tab').forEach((t) => {
   t.addEventListener('click', () => showTab(t.dataset.tab, true));
 });
 window.addEventListener('popstate', () => showTab(tabFromPath(), false));
-showTab(tabFromPath(), false);
+// initial tab is activated at the end of this file, once every let/const below is initialized
 
 // ---------- confirm dialog ----------
 function confirmDialog({ title, message, okText, danger = true, icon = 'alert-triangle' } = {}) {
@@ -130,7 +141,7 @@ function confirmDialog({ title, message, okText, danger = true, icon = 'alert-tr
       row('memory-stick', fmtSize(j.totalmem - j.freemem) + ' / ' + fmtSize(j.totalmem)) +
       row('folder', esc(j.root));
     refreshIcons();
-  } catch { /* ignore */ }
+  } catch (e) { console.error('[sysinfo] gagal:', e); }
 })();
 
 // ---------- logout ----------
@@ -454,26 +465,30 @@ async function loadStats() {
       card('cpu', 'CPU', (c.load1 != null ? c.load1.toFixed(2) : '—'), (c.cores || '—') + ' core', '') +
       card('memory-stick', 'RAM', (m.percent != null ? m.percent + '%' : '—'), fmtSize(m.used || 0) + ' / ' + fmtSize(m.total || 0), bar(m.percent)) +
       card('hard-drive', 'Disk', d ? d.percent + '%' : '—', d ? fmtSize(d.used) + ' / ' + fmtSize(d.total) : '', d ? bar(d.percent) : '') +
-      card('battery-medium', 'Battery', j.battery ? j.battery.percentage + '%' : '—', j.battery ? esc(j.battery.status || '') : '', '') +
+      card('battery-medium', 'Battery', (j.battery && j.battery.percentage != null) ? j.battery.percentage + '%' : '—', j.battery ? esc(j.battery.status || j.battery.error || '') : '', '') +
       card('timer', 'Uptime', fmtUptime(j.uptime), fmtDate(j.time), '');
+    if (j.sites) renderDashSites(j.sites);
     refreshIcons();
   } catch (e) { /* ignore */ }
+}
+function renderDashSites(list) {
+  const el = document.getElementById('dash-sites');
+  el.innerHTML = '';
+  if (!list || !list.length) {
+    el.innerHTML = '<tr><td colspan="4" class="muted">No websites yet</td></tr>';
+  } else {
+    for (const s of list) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + esc(s.name) + '</td><td class="muted">' + esc(s.type) + '</td><td class="muted">' + s.port + '</td><td>' + (s.running ? badgeOk('Running') : badgeOff('Stopped')) + '</td>';
+      el.appendChild(tr);
+    }
+  }
+  refreshIcons();
 }
 async function loadDashSites() {
   try {
     const j = await (await api('/api/sites')).json();
-    const el = document.getElementById('dash-sites');
-    el.innerHTML = '';
-    if (!j.sites || !j.sites.length) {
-      el.innerHTML = '<tr><td colspan="4" class="muted">No websites yet</td></tr>';
-    } else {
-      for (const s of j.sites) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = '<td>' + esc(s.name) + '</td><td class="muted">' + esc(s.type) + '</td><td class="muted">' + s.port + '</td><td>' + (s.running ? badgeOk('Running') : badgeOff('Stopped')) + '</td>';
-        el.appendChild(tr);
-      }
-    }
-    refreshIcons();
+    renderDashSites(j.sites);
   } catch { /* ignore */ }
 }
 
@@ -578,7 +593,7 @@ async function showLogs(s) {
 async function loadNginx() {
   try {
     const j = await (await api('/api/nginx/status')).json();
-    document.getElementById('nginx-status').innerHTML = j.running ? badgeOk('Nginx jalan') : badgeOff('Nginx mati');
+    document.getElementById('nginx-status').innerHTML = j.running ? badgeOk('Nginx running') : badgeOff('Nginx stopped');
   } catch { /* ignore */ }
   try {
     const j = await (await api('/api/nginx/proxies')).json();
@@ -842,7 +857,7 @@ document.getElementById('cj-preset').addEventListener('change', (e) => {
 async function loadCron() {
   try {
     const j = await (await api('/api/cron/status')).json();
-    document.getElementById('cron-status').innerHTML = j.running ? badgeOk('crond jalan') : badgeOff('crond mati');
+    document.getElementById('cron-status').innerHTML = j.running ? badgeOk('crond running') : badgeOff('crond stopped');
     refreshIcons();
   } catch { /* ignore */ }
   try {
@@ -1051,6 +1066,8 @@ updateThemeUI(getTheme());
 document.getElementById('cj-preset').dispatchEvent(new Event('change'));
 loadFiles();
 loadSites();
-loadDashSites();
-startStats();
+
+// ---------- boot ----------
+// showTab menyuntikkan markup baru, jadi konversi ikon dilakukan SESUDAHNYA
+showTab(tabFromPath(), false);
 refreshIcons();

@@ -29,6 +29,10 @@ try {
 // ================= Konfigurasi =================
 const HOME = os.homedir();
 const ROOT = path.resolve(process.env.PANEL_ROOT || HOME);
+// Satu sumber kebenaran untuk versi: package.json
+const VERSION = (function () {
+  try { return require('./package.json').version; } catch (e) { return '0.0.0'; }
+})();
 const DATA_DIR = path.join(HOME, '.termux-panel');
 const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 const PORT = parseInt(process.env.PANEL_PORT || '8080', 10);
@@ -101,10 +105,21 @@ function parseCookies(req) {
   return out;
 }
 
+// Sesi kedaluwarsa mengikuti Max-Age cookie (24 jam)
+const SESSION_TTL = 86400 * 1000;
 function isAuthed(req) {
   const c = parseCookies(req);
-  return !!c.tpsid && sessions.has(c.tpsid);
+  if (!c.tpsid) return false;
+  const s = sessions.get(c.tpsid);
+  if (!s) return false;
+  if (Date.now() - s.created > SESSION_TTL) { sessions.delete(c.tpsid); return false; }
+  return true;
 }
+// Bersihkan token kedaluwarsa agar Map tidak tumbuh tanpa batas
+setInterval(() => {
+  const now = Date.now();
+  for (const [t, s] of sessions) if (now - s.created > SESSION_TTL) sessions.delete(t);
+}, 3600 * 1000).unref();
 
 // Pastikan path hasil selalu di dalam ROOT (cegah path traversal)
 function safePath(rel) {
@@ -451,7 +466,7 @@ const INSTALL_ITEMS = [
 const installRuns = new Map(); // id -> { child, logs[], running, exitCode }
 function execCheck(cmd) {
   return new Promise((resolve) => {
-    exec('bash -c ' + JSON.stringify(cmd), { timeout: 8000 }, (err) => resolve(!err));
+    exec(cmd, { shell: SHELL, timeout: 8000 }, (err) => resolve(!err));
   });
 }
 
@@ -740,7 +755,7 @@ function sendTelegram(text) {
 }
 async function apiSettingsGet(res) {
   const s = loadSettings();
-  sendJson(res, 200, { username: config.username, telegram: s.telegram || {}, version: '1.13.0' });
+  sendJson(res, 200, { username: config.username, telegram: s.telegram || {}, version: VERSION });
 }
 async function apiSettingsPost(req, res) {
   const body = JSON.parse((await readBody(req, 1e6)).toString('utf8'));
@@ -881,10 +896,16 @@ function apiLogoutAll(res) {
   sendJson(res, 200, { ok: true });
 }
 // ================= Helper exec umum =================
+// bash tidak selalu ada di Termux; pakai bash bila tersedia, kalau tidak sh bawaan
+const SHELL = (function () {
+  const cands = ['/bin/bash', (process.env.PREFIX || '/data/data/com.termux/files/usr') + '/bin/bash'];
+  for (const c of cands) { try { if (fs.existsSync(c)) return c; } catch (e) {} }
+  return undefined; // fallback: /bin/sh bawaan exec
+})();
 function sq(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'"; }
 function execOk(cmd, timeout) {
   return new Promise((resolve) => {
-    exec('bash -c ' + JSON.stringify(cmd), { timeout: timeout || 10000 }, (err, stdout) => {
+    exec(cmd, { shell: SHELL, timeout: timeout || 10000 }, (err, stdout) => {
       resolve({ ok: !err, out: String(stdout || '') + (err ? err.message : '') });
     });
   });
@@ -892,8 +913,8 @@ function execOk(cmd, timeout) {
 function execTimeout(cmd, opts) {
   opts = opts || {};
   return new Promise((resolve, reject) => {
-    exec('bash -c ' + JSON.stringify(cmd), {
-      timeout: opts.timeout || 30000, cwd: opts.cwd || HOME, maxBuffer: 50 * 1024 * 1024,
+    exec(cmd, {
+      shell: SHELL, timeout: opts.timeout || 30000, cwd: opts.cwd || HOME, maxBuffer: 50 * 1024 * 1024,
     }, (err, stdout, stderr) => {
       if (err) reject(new Error(String(stderr || err.message || 'Failed').slice(-800)));
       else resolve(String(stdout || ''));
@@ -905,6 +926,41 @@ async function mustBin(bin, msg) {
   if (!r.ok) throw new Error(msg);
 }
 // ================= Dashboard: /api/stats =================
+// os.cpus() kerap mengembalikan array kosong di Termux/Android -> jatuh ke nproc/cpuinfo
+let cpuCoresCache = 0;
+function cpuCores() {
+  if (cpuCoresCache) return cpuCoresCache;
+  try { const n = os.cpus().length; if (n) return (cpuCoresCache = n); } catch (e) {}
+  try {
+    const list = fs.readdirSync('/sys/devices/system/cpu').filter((f) => /^cpu[0-9]+$/.test(f));
+    if (list.length) return (cpuCoresCache = list.length);
+  } catch (e) {}
+  try {
+    const n = (fs.readFileSync('/proc/cpuinfo', 'utf8').match(/^processor\s*:/gm) || []).length;
+    if (n) return (cpuCoresCache = n);
+  } catch (e) {}
+  return 0;
+}
+// Butuh paket termux-api DAN aplikasi Termux:API terpasang
+let batteryUnavailable = false;
+async function getBattery() {
+  if (batteryUnavailable) return null;
+  try {
+    const raw = await execTimeout('termux-battery-status', { timeout: 5000 });
+    const b = JSON.parse(raw);
+    if (b && b.percentage != null) return { percentage: b.percentage, status: b.status || '' };
+    return { error: 'Termux:API tidak merespons' };
+  } catch (e) {
+    const msg = String((e && e.message) || '');
+    // command not found -> jangan coba lagi tiap 5 detik
+    if (/not found|ENOENT/i.test(msg)) {
+      batteryUnavailable = true;
+      return { error: 'pkg install termux-api' };
+    }
+    // terpasang tapi app Termux:API belum ada / izin ditolak -> perintah menggantung lalu timeout
+    return { error: /timed out|ETIMEDOUT/i.test(msg) ? 'Butuh app Termux:API' : 'Baterai tidak tersedia' };
+  }
+}
 async function getStatsData() {
   const load = os.loadavg();
   const total = os.totalmem(), free = os.freemem();
@@ -917,14 +973,10 @@ async function getStatsData() {
       disk = { total: tot, used, free: av, percent: tot ? Math.round((used / tot) * 100) : 0 };
     }
   } catch { /* ignore */ }
-  let battery = null;
-  try {
-    const b = JSON.parse(await execTimeout('termux-battery-status', { timeout: 3000 }));
-    battery = { percentage: b.percentage, status: b.status };
-  } catch { /* ignore */ }
+  const battery = await getBattery();
   return {
     hostname: os.hostname(), uptime: Math.floor(os.uptime()), time: Date.now(),
-    cpu: { load1: +load[0].toFixed(2), load5: +load[1].toFixed(2), load15: +load[2].toFixed(2), cores: os.cpus().length },
+    cpu: { load1: +load[0].toFixed(2), load5: +load[1].toFixed(2), load15: +load[2].toFixed(2), cores: cpuCores() },
     mem: { total, free, used: total - free, percent: total ? Math.round(((total - free) / total) * 100) : 0 },
     disk, battery,
     sites: sites.map((s) => ({ name: s.name, type: s.type, port: s.port, running: running.has(s.id) })),
@@ -1435,7 +1487,8 @@ async function handleRequest(req, res) {
     if (req.method === 'POST' && p === '/api/files/zip') return apiFileZip(req, res);
     if (req.method === 'POST' && p === '/api/files/unzip') return apiFileUnzip(req, res);
     if (req.method === 'GET' && p === '/api/files/preview') return apiFilePreview(url, res);
-sendJson(res, 404, { error: 'Not found' });
+
+    sendJson(res, 404, { error: 'Not found' });
   } catch (e) {
     sendJson(res, 400, { error: e.message || 'Failed' });
   }
@@ -1453,7 +1506,7 @@ server.on('upgrade', (req, socket, head) => {
   } catch { /* ignore */ }
   if (!ok) { socket.destroy(); return; }
   wss.handleUpgrade(req, socket, head, (ws) => {
-    const shell = process.env.SHELL || 'bash';
+    const shell = process.env.SHELL || SHELL || 'sh';
     const send = (d) => { if (ws.readyState === 1) ws.send(d.toString('utf8')); };
     let writeFn, resizeFn, killFn;
     if (ptyMod) {

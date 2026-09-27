@@ -23,13 +23,35 @@
 /* ---------- 3. state dinamis ---------- */
 .tabpane{display:none}
 .tabpane.active{display:block}
-aside .tab.active{background:rgba(99,102,241,.15) !important;color:var(--color-text) !important}
+aside .tab.active{background:color-mix(in srgb,var(--c-accent) 16%,transparent) !important;color:var(--color-text) !important}
 aside .tab.active svg.lucide,aside .tab.active i{color:var(--color-accent-h)}
 svg.lucide{flex-shrink:0}
 
 /* ---------- mobile ---------- */
 @media (max-width:768px){
   main{padding:12px !important}
-  .md\:hidden .tab.active{background:rgba(99,102,241,.18) !important;
-    border-color:rgba(99,102,241,.4) !important;color:var(--color-text) !important}
+  .md\:hidden .tab.active{background:color-mix(in srgb,var(--c-accent) 18%,transparent) !important;
+    border-color:color-mix(in srgb,var(--c-accent) 40%,transparent) !important;color:var(--color-text) !important}
+}
+
+/* ---------- 4. responsive: cegah scroll horizontal ---------- */
+/* Tabel lebar dibungkus .tbl-wrap (overflow-x:auto); halaman sendiri
+   tidak boleh ikut melebar karena konten yang meluber. */
+/* CATATAN: overflow-x:hidden pada <html> mematikan position:sticky pada
+   header mobile, jadi cukup batasi lebarnya saja. */
+html,body{max-width:100%}
+.tbl-wrap{-webkit-overflow-scrolling:touch}
+
+/* Path/URL panjang di tabel & sidebar jangan mendorong lebar halaman */
+#sysinfo span{min-width:0;overflow-wrap:anywhere}
+.tbl td{overflow-wrap:anywhere}
+
+/* Modal: isi panjang (editor, logs) harus muat di layar pendek */
+[id$="-modal"] > div{max-height:90vh;overflow-y:auto}
+
+/* Layar sangat kecil (<=400px): .lbl min-width 140px x2 + gap meluber */
+@media (max-width:400px){
+  .frow{gap:10px}
+  .lbl{min-width:100%}
+  #term-box{height:50vh;min-height:220px;padding:6px}
 }

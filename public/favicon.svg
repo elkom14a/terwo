@@ -1,9 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Ikon lucide "server", sama dengan yang dipakai di header -->
   <rect width="64" height="64" rx="14" fill="#1b1e22"/>
-  <g fill="none" stroke="#20a53a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="13" y="11" width="38" height="15" rx="3.5"/>
-    <rect x="13" y="38" width="38" height="15" rx="3.5"/>
-    <line x1="21.5" y1="18.5" x2="22" y2="18.5"/>
-    <line x1="21.5" y1="45.5" x2="22" y2="45.5"/>
+  <g transform="translate(8 8) scale(2)" fill="none" stroke="#35b24a" stroke-width="2"
+     stroke-linecap="round" stroke-linejoin="round">
+    <rect width="20" height="8" x="2" y="2" rx="2" ry="2"/>
+    <rect width="20" height="8" x="2" y="14" rx="2" ry="2"/>
+    <line x1="6" x2="6.01" y1="6" y2="6"/>
+    <line x1="6" x2="6.01" y1="18" y2="18"/>
   </g>
 </svg>
