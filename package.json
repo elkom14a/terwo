@@ -1,0 +1,22 @@
+{
+  "dependencies": {
+    "mysql2": "^3.11.0",
+    "pg": "^8.13.0",
+    "ws": "^8.18.0"
+  },
+  "description": "Panel web sederhana untuk Termux: file manager + terminal + info sistem",
+  "license": "MIT",
+  "main": "panel.js",
+  "name": "terwo",
+  "scripts": {
+    "start": "node panel.js",
+    "build:css": "tailwindcss -i public/input.css -o public/tailwind.css --minify"
+  },
+  "version": "1.9.0",
+  "optionalDependencies": {
+    "node-pty": "^1.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3"
+  }
+}
