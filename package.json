@@ -12,7 +12,7 @@
     "start": "node panel.js",
     "build:css": "tailwindcss -i public/input.css -o public/tailwind.css --minify"
   },
-  "version": "1.9.0",
+  "version": "1.10.0",
   "optionalDependencies": {
     "node-pty": "^1.0.0"
   },

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 /*
- * Terwo v1.9.0
+ * Terwo v1.10.0
  * Panel web sederhana untuk Termux: File Manager + Terminal + Info Sistem.
  *
  * Keamanan bawaan:
@@ -740,7 +740,7 @@ function sendTelegram(text) {
 }
 async function apiSettingsGet(res) {
   const s = loadSettings();
-  sendJson(res, 200, { username: config.username, telegram: s.telegram || {}, version: '1.9.0' });
+  sendJson(res, 200, { username: config.username, telegram: s.telegram || {}, version: '1.10.0' });
 }
 async function apiSettingsPost(req, res) {
   const body = JSON.parse((await readBody(req, 1e6)).toString('utf8'));

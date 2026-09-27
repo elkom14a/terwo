@@ -1,4 +1,4 @@
-# Terwo v1.9.0
+# Terwo v1.10.0
 **Ter**mux **W**eb **O**peration
 
 Panel web ringan untuk mengelola Termux dari browser: **file manager**, **terminal**,
@@ -17,24 +17,38 @@ npm run build:css
 
 ## Cara pasang di Termux
 
-**Satu perintah (perlu repo GitHub dulu, lihat bawah):**
+**Satu perintah:**
 ```bash
-curl -sL https://raw.githubusercontent.com/GITHUB_USER/terwo/main/install.sh | bash
+curl -sL https://raw.githubusercontent.com/elkom14a/terwo/main/install.sh | bash
 ```
+Installer otomatis: cek Node.js → clone repo → `npm install` → install **PM2** →
+panel **langsung jalan di background** (seperti aaPanel) → `pm2 save`.
+Tidak perlu terminal tetap terbuka.
 
 **Manual:**
 ```bash
 pkg install nodejs -y
 cd terwo
 npm install
-node panel.js
+npm install -g pm2
+pm2 start ecosystem.config.js
+pm2 save
 ```
 
 Lalu buka di browser: **http://127.0.0.1:8080**
 
 Saat pertama dijalankan, panel membuat username + password acak dan
-menampilkannya di terminal (gaya aaPanel). Login dengan keduanya, lalu
-segera ganti lewat menu **Settings**.
+menampilkannya di log (`pm2 logs terwo --nostream | grep -A7 "akses awal"`).
+Login dengan keduanya, lalu segera ganti lewat menu **Settings**.
+
+### Kelola panel (PM2)
+
+```bash
+pm2 logs terwo     # lihat log panel
+pm2 restart terwo  # restart panel
+pm2 stop terwo     # hentikan panel
+pm2 list           # lihat status
+```
 
 ## Pengaturan (opsional, via environment variable)
 
@@ -146,16 +160,18 @@ redis-server --daemonize yes
 ```
 
 **Panel auto-start saat HP reboot** — install aplikasi Termux:Boot, lalu buat
-file `~/.termux/boot/start-panel.sh`:
+file `~/.termux/boot/terwo.sh`:
 
 ```bash
 #!/data/data/com.termux/files/usr/bin/sh
+export PATH=$PATH:/data/data/com.termux/files/usr/bin
 termux-wake-lock
-cd ~/terwo
-node panel.js
+pm2 resurrect
 ```
 
-Jangan lupa `chmod +x ~/.termux/boot/start-panel.sh`.
+Jangan lupa `chmod +x ~/.termux/boot/terwo.sh`.
+(`pm2 save` sudah dijalankan installer, jadi `pm2 resurrect` menghidupkan
+kembali panel otomatis.)
 
 **Tips lain:**
 
@@ -182,24 +198,13 @@ Jangan lupa `chmod +x ~/.termux/boot/start-panel.sh`.
    hapus file `~/.termux-panel/config.json` lalu jalankan ulang untuk membuat
    kredensial baru.
 
-## Pasang repo ke GitHub (untuk one-liner install)
+## Update dari GitHub
 
-One-liner `curl ... | bash` di atas butuh `install.sh` yang ter-host di GitHub.
-Langkahnya sekali saja:
+Repo resmi: **https://github.com/elkom14a/terwo**. Untuk update ke versi terbaru:
 
 ```bash
-# 1. Bikin repo public baru di github.com/new, namanya: terwo
-# 2. Di Termux (dari folder hasil extract ZIP ini):
-nano install.sh   # ganti GITHUB_USER="GANTI-USERNAME" dengan username GitHub kamu
-git init
-git add .
-git commit -m "v1.9.0"
-git branch -M main
-git remote add origin https://github.com/USERNAME-KAMU/terwo.git
-git push -u origin main
-```
-
-Setelah itu one-liner-nya aktif:
-```bash
-curl -sL https://raw.githubusercontent.com/USERNAME-KAMU/terwo/main/install.sh | bash
+cd ~/terwo
+git pull --ff-only
+npm install --no-audit --no-fund
+pm2 restart terwo
 ```
