@@ -6,6 +6,20 @@ A lightweight web panel to manage Termux from your browser: **file manager**,
 obfuscation. Dependencies: `ws`, `mysql2`, `pg` (the last two only for the
 Database menu).
 
+## Screenshots
+
+**Dashboard** — live CPU, RAM, disk, battery and uptime stats, refreshed every 5 seconds.
+
+![Terwo dashboard](docs/screenshots/dashboard.png)
+
+**Website** — host Node.js, PHP, Static or Go sites and manage Nginx reverse proxies.
+
+![Terwo website manager](docs/screenshots/website.png)
+
+**Store** — install packages straight from the panel with live streaming logs.
+
+![Terwo store](docs/screenshots/store.png)
+
 The UI uses **Tailwind CSS v4** (built output, `public/tailwind.css` is included)
 and local **Lucide** icons (`public/vendor/lucide.min.js`) — no CDN, fully
 offline. Developers who change the look can rebuild the CSS with:
