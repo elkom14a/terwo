@@ -10,7 +10,7 @@
 # ============================================================
 set -e
 
-GITHUB_USER="GANTI-USERNAME"
+GITHUB_USER="elkom14a"
 REPO_URL="${PANEL_REPO_URL:-https://github.com/${GITHUB_USER}/terwo.git}"
 TARGET_DIR="${PANEL_DIR:-$HOME/terwo}"
 
