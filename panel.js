@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 'use strict';
 /*
- * Terwo v1.10.0
- * Panel web sederhana untuk Termux: File Manager + Terminal + Info Sistem.
+ * Terwo v1.13.0
+ * Simple web panel for Termux: File Manager + Terminal + System Info.
  *
  * Keamanan bawaan:
  *  - Login password (hash PBKDF2), session cookie HttpOnly
@@ -22,7 +22,7 @@ let WebSocket;
 try {
   WebSocket = require('ws');
 } catch (e) {
-  console.error('ERROR: modul "ws" belum terinstall.\nJalankan dulu: npm install');
+  console.error('ERROR: module "ws" is not installed.\nRun first: npm install');
   process.exit(1);
 }
 
@@ -60,7 +60,7 @@ function loadConfig() {
     if (!cfg.username) {
       cfg.username = 'admin';
       fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), { mode: 0o600 });
-      console.log('INFO: username default "admin" ditambahkan (ganti di menu Settings).');
+      console.log('INFO: default username "admin" added (change it in the Settings menu).');
     }
     return cfg;
   }
@@ -72,13 +72,13 @@ function loadConfig() {
   const line = '='.repeat(46);
   console.log('');
   console.log('  ' + line);
-  console.log('  Terwo — akses awal');
+  console.log('  Terwo — initial access');
   console.log('  ' + line);
   console.log('  URL      : http://' + HOST + ':' + PORT);
   console.log('  Username : ' + username);
   console.log('  Password : ' + password);
   console.log('  ' + line);
-  console.log('  Simpan baik-baik, ganti di menu Settings setelah login.');
+  console.log('  Save these well, change them in the Settings menu after login.');
   console.log('');
   return cfg;
 }
@@ -110,17 +110,17 @@ function isAuthed(req) {
 function safePath(rel) {
   const p = path.resolve(ROOT, rel || '.');
   if (p !== ROOT && !p.startsWith(ROOT + path.sep)) {
-    throw new Error('Akses di luar direktori kerja ditolak');
+    throw new Error('Access outside working directory denied');
   }
   return p;
 }
 
-// Nama file/folder tunggal: tolak yang mengandung path separator
+// Single file/folder name: reject path separators
 function safeName(name) {
-  if (!name || typeof name !== 'string') throw new Error('Nama tidak valid');
+  if (!name || typeof name !== 'string') throw new Error('Invalid name');
   const n = name.trim();
   if (!n || n === '.' || n === '..' || n.includes('/') || n.includes('\\') || n.includes('\0')) {
-    throw new Error('Nama tidak valid');
+    throw new Error('Invalid name');
   }
   return n;
 }
@@ -131,7 +131,7 @@ function readBody(req, limit) {
     let size = 0;
     req.on('data', (c) => {
       size += c.length;
-      if (size > limit) { req.destroy(); reject(new Error('Body terlalu besar')); return; }
+      if (size > limit) { req.destroy(); reject(new Error('Body too large')); return; }
       chunks.push(c);
     });
     req.on('end', () => resolve(Buffer.concat(chunks)));
@@ -157,7 +157,7 @@ async function servePublic(res, filename) {
     res.writeHead(200, { 'Content-Type': MIME[path.extname(filename)] || 'application/octet-stream' });
     res.end(data);
   } catch {
-    sendJson(res, 404, { error: 'Tidak ditemukan' });
+    sendJson(res, 404, { error: 'Not found' });
   }
 }
 
@@ -173,14 +173,14 @@ async function apiFiles(url, res) {
   const out = [];
   for (const e of entries) {
     if (e.name.startsWith('.') && e.name !== '.termux-panel') {
-      // tampilkan dotfile juga, tidak masalah
+      // show dotfiles too, no problem
     }
     const full = path.join(dir, e.name);
     let size = 0, mtime = 0;
     try {
       const st = await fsp.stat(full);
       size = st.size; mtime = st.mtimeMs;
-    } catch { /* abaikan */ }
+    } catch { /* ignore */ }
     out.push({ name: e.name, type: e.isDirectory() ? 'dir' : 'file', size, mtime });
   }
   out.sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'dir' ? -1 : 1));
@@ -218,14 +218,14 @@ async function apiRead(req, res) {
   const { path: rel, name } = JSON.parse((await readBody(req, 1e6)).toString('utf8'));
   const full = path.join(safePath(rel || ''), safeName(name));
   const st = await fsp.stat(full);
-  if (st.size > 1024 * 1024) throw new Error('File terlalu besar untuk diedit (maks 1 MB)');
+  if (st.size > 1024 * 1024) throw new Error('File too large to edit (max 1 MB)');
   const content = await fsp.readFile(full, 'utf8');
   sendJson(res, 200, { ok: true, content });
 }
 
 async function apiWrite(req, res) {
   const { path: rel, name, content } = JSON.parse((await readBody(req, 10 * 1024 * 1024)).toString('utf8'));
-  if (typeof content !== 'string') throw new Error('Konten tidak valid');
+  if (typeof content !== 'string') throw new Error('Invalid content');
   await fsp.writeFile(path.join(safePath(rel || ''), safeName(name)), content, 'utf8');
   sendJson(res, 200, { ok: true });
 }
@@ -233,7 +233,7 @@ async function apiWrite(req, res) {
 async function apiUpload(req, res) {
   const { path: rel, name, data } = JSON.parse((await readBody(req, MAX_UPLOAD + 1024 * 1024)).toString('utf8'));
   const buf = Buffer.from(data, 'base64');
-  if (buf.length > MAX_UPLOAD) throw new Error('File terlalu besar (maks 50 MB)');
+  if (buf.length > MAX_UPLOAD) throw new Error('File too large (max 50 MB)');
   await fsp.writeFile(path.join(safePath(rel || ''), safeName(name)), buf);
   sendJson(res, 200, { ok: true, size: buf.length });
 }
@@ -243,7 +243,7 @@ async function apiDownload(url, res) {
   const name = safeName(url.searchParams.get('name') || '');
   const full = path.join(safePath(rel), name);
   const st = await fsp.stat(full);
-  if (!st.isFile()) throw new Error('Bukan file');
+  if (!st.isFile()) throw new Error('Not a file');
   res.writeHead(200, {
     'Content-Type': 'application/octet-stream',
     'Content-Length': st.size,
@@ -312,18 +312,18 @@ async function apiSiteCreate(req, res) {
   const body = JSON.parse((await readBody(req, 1e6)).toString('utf8'));
   const name = (body.name || '').trim();
   const type = body.type;
-  if (!name) throw new Error('Nama wajib diisi');
-  if (type !== 'node' && type !== 'php' && type !== 'static' && type !== 'go') throw new Error('Tipe harus nodejs, php, static, atau go');
+  if (!name) throw new Error('Name is required');
+  if (type !== 'node' && type !== 'php' && type !== 'static' && type !== 'go') throw new Error('Type must be nodejs, php, static, or go');
   const portNum = parseInt(body.port, 10);
-  if (!portNum || portNum < 1024 || portNum > 65535) throw new Error('Port harus 1024–65535');
-  if (sites.some((s) => s.port === portNum)) throw new Error('Port sudah dipakai website lain');
+  if (!portNum || portNum < 1024 || portNum > 65535) throw new Error('Port must be 1024–65535');
+  if (sites.some((s) => s.port === portNum)) throw new Error('Port is already used by another website');
   const full = safePath(body.path || '.');
   const st = await fsp.stat(full).catch(() => null);
-  if (!st) throw new Error('Path tidak ditemukan');
-  if (type === 'node' && !st.isFile()) throw new Error('Untuk Node.js, path harus file (mis. server.js)');
-  if (type === 'php' && !st.isDirectory()) throw new Error('Untuk PHP, path harus folder document root');
-  if (type === 'static' && !st.isDirectory()) throw new Error('Untuk Static, path harus folder');
-  if (type === 'go' && !st.isDirectory()) throw new Error('Untuk Go, path harus folder project');
+  if (!st) throw new Error('Path not found');
+  if (type === 'node' && !st.isFile()) throw new Error('For Node.js, path must be a file (e.g. server.js)');
+  if (type === 'php' && !st.isDirectory()) throw new Error('For PHP, path must be a document root folder');
+  if (type === 'static' && !st.isDirectory()) throw new Error('For Static, path must be a folder');
+  if (type === 'go' && !st.isDirectory()) throw new Error('For Go, path must be a project folder');
   const site = {
     id: crypto.randomBytes(8).toString('hex'),
     name, type, path: relOf(full), port: portNum, created: Date.now(),
@@ -335,16 +335,16 @@ async function apiSiteCreate(req, res) {
 
 async function apiSiteStart(req, res, id) {
   const site = siteById(id);
-  if (!site) throw new Error('Website tidak ditemukan');
-  if (running.has(id)) throw new Error('Sudah berjalan');
+  if (!site) throw new Error('Website not found');
+  if (running.has(id)) throw new Error('Already running');
   const full = safePath(site.path);
   if (site.type === 'static') {
     const hasPy = await execCheck('command -v python3 >/dev/null 2>&1');
-    if (!hasPy) throw new Error('Install python dulu via menu Store');
+    if (!hasPy) throw new Error('Install python first via the Store menu');
   }
   if (site.type === 'go') {
     const hasGo = await execCheck('command -v go >/dev/null 2>&1');
-    if (!hasGo) throw new Error('Install Go dulu via menu Store');
+    if (!hasGo) throw new Error('Install Go first via the Store menu');
   }
   let child;
   if (site.type === 'node') {
@@ -376,14 +376,14 @@ async function apiSiteStart(req, res, id) {
     running.delete(id);
   };
   child.on('exit', (code) => { pushLog(id, '--- berhenti (exit ' + code + ') ---\n'); finish(); });
-  child.on('error', (e) => { pushLog(id, '--- gagal start: ' + e.message + ' ---\n'); finish(); });
+  child.on('error', (e) => { pushLog(id, '--- failed to start: ' + e.message + ' ---\n'); finish(); });
   sendJson(res, 200, { ok: true });
 }
 
 async function apiSiteStop(req, res, id) {
   const rec = running.get(id);
-  if (!rec) throw new Error('Tidak sedang berjalan');
-  try { rec.child.kill(); } catch { /* abaikan */ }
+  if (!rec) throw new Error('Not running');
+  try { rec.child.kill(); } catch { /* ignore */ }
   running.delete(id);
   sendJson(res, 200, { ok: true });
 }
@@ -391,7 +391,7 @@ async function apiSiteStop(req, res, id) {
 async function apiSiteRestart(req, res, id) {
   const rec = running.get(id);
   if (rec) {
-    try { rec.child.kill(); } catch { /* abaikan */ }
+    try { rec.child.kill(); } catch { /* ignore */ }
     running.delete(id);
     await new Promise((r) => setTimeout(r, 500));
   }
@@ -401,7 +401,7 @@ async function apiSiteRestart(req, res, id) {
 async function apiSiteDelete(req, res, id) {
   const rec = running.get(id);
   if (rec) {
-    try { rec.child.kill(); } catch { /* abaikan */ }
+    try { rec.child.kill(); } catch { /* ignore */ }
     running.delete(id);
   }
   sites = sites.filter((s) => s.id !== id);
@@ -419,7 +419,7 @@ function apiSiteLogs(res, id) {
 }
 
 // ================= Install Center =================
-// Install paket Termux via pkg/npm, log tampil live di frontend.
+// Install Termux packages via pkg/npm, logs stream live to the frontend.
 const INSTALL_ITEMS = [
   { id: 'nginx', name: 'Nginx', desc: 'Web server & reverse proxy', bin: 'nginx', cmd: 'pkg install -y nginx' },
   { id: 'nodejs', name: 'Node.js', desc: 'Runtime JavaScript', bin: 'node', cmd: 'pkg install -y nodejs', forcedInstalled: true },
@@ -428,25 +428,25 @@ const INSTALL_ITEMS = [
   { id: 'mysql', name: 'MySQL (MariaDB)', desc: 'Database server MySQL', bin: 'mysqld', cmd: 'pkg install -y mariadb' },
   { id: 'postgres', name: 'PostgreSQL', desc: 'Database server PostgreSQL', bin: 'postgres', cmd: 'pkg install -y postgresql' },
   { id: 'php', name: 'PHP', desc: 'Interpreter PHP', bin: 'php', cmd: 'pkg install -y php' },
-  { id: 'bun', name: 'Bun', desc: 'Runtime JS cepat', check: 'command -v bun >/dev/null 2>&1 || [ -f "$HOME/.bun/bin/bun" ]', cmd: 'curl -fsSL https:/' + '/bun.sh/install | bash' },
+  { id: 'bun', name: 'Bun', desc: 'Fast JS runtime', check: 'command -v bun >/dev/null 2>&1 || [ -f "$HOME/.bun/bin/bun" ]', cmd: 'curl -fsSL https:/' + '/bun.sh/install | bash' },
   { id: 'redis', name: 'Redis', desc: 'In-memory database & cache', bin: 'redis-server', cmd: 'pkg install -y redis' },
   { id: 'python', name: 'Python', desc: 'Interpreter Python', bin: 'python', cmd: 'pkg install -y python' },
-  { id: 'golang', name: 'Go', desc: 'Bahasa pemrograman Go', bin: 'go', cmd: 'pkg install -y golang' },
-  { id: 'cronie', name: 'Cronie', desc: 'Cron daemon (jadwal otomatis)', bin: 'crond', cmd: 'pkg install -y cronie' },
+  { id: 'golang', name: 'Go', desc: 'Go programming language', bin: 'go', cmd: 'pkg install -y golang' },
+  { id: 'cronie', name: 'Cronie', desc: 'Cron daemon (scheduled jobs)', bin: 'crond', cmd: 'pkg install -y cronie' },
   { id: '9router', name: '9Router', desc: 'AI model gateway (OpenAI-compatible)', bin: '9router', cmd: 'npm install -g 9router' },
   { id: 'hermes', name: 'Hermes Agent', desc: 'AI coding agent CLI', bin: 'hermes', cmd: 'curl -fsSL https://hermes-agent.' + 'nousresearch.com/install.sh | bash' },
   { id: 'cloudflared', name: 'Cloudflared', desc: 'Cloudflare Tunnel', bin: 'cloudflared', cmd: 'pkg install -y cloudflared' },
-  { id: 'zip', name: 'Zip', desc: 'Arsip ZIP (dipakai file manager & backup)', bin: 'zip', cmd: 'pkg install -y zip' },
-  { id: 'unzip', name: 'Unzip', desc: 'Ekstrak ZIP (dipakai file manager & backup)', bin: 'unzip', cmd: 'pkg install -y unzip' },
+  { id: 'zip', name: 'Zip', desc: 'ZIP archives (used by file manager & backup)', bin: 'zip', cmd: 'pkg install -y zip' },
+  { id: 'unzip', name: 'Unzip', desc: 'Extract ZIP (used by file manager & backup)', bin: 'unzip', cmd: 'pkg install -y unzip' },
   { id: 'openssh', name: 'OpenSSH', desc: 'SSH server & client (sshd port 8022)', bin: 'sshd', cmd: 'pkg install -y openssh' },
-  { id: 'termux-api', name: 'Termux:API', desc: 'Akses sensor & fitur HP (baterai, notifikasi)', bin: 'termux-battery-status', cmd: 'pkg install -y termux-api' },
+  { id: 'termux-api', name: 'Termux:API', desc: 'Phone sensors & features (battery, notifications)', bin: 'termux-battery-status', cmd: 'pkg install -y termux-api' },
   { id: 'git', name: 'Git', desc: 'Version control system', bin: 'git', cmd: 'pkg install -y git' },
   { id: 'tmux', name: 'Tmux', desc: 'Terminal multiplexer', bin: 'tmux', cmd: 'pkg install -y tmux' },
   { id: 'composer', name: 'Composer', desc: 'Package manager PHP', bin: 'composer', cmd: 'pkg install -y composer' },
-  { id: 'sqlite', name: 'SQLite', desc: 'Database ringan tanpa server', bin: 'sqlite3', cmd: 'pkg install -y sqlite' },
-  { id: 'ffmpeg', name: 'FFmpeg', desc: 'Olah video & audio', bin: 'ffmpeg', cmd: 'pkg install -y ffmpeg' },
-  { id: 'yt-dlp', name: 'yt-dlp', desc: 'Downloader video & audio', bin: 'yt-dlp', cmd: 'pkg install -y yt-dlp' },
-  { id: 'rsync', name: 'Rsync', desc: 'Sinkronisasi file & backup', bin: 'rsync', cmd: 'pkg install -y rsync' },
+  { id: 'sqlite', name: 'SQLite', desc: 'Lightweight serverless database', bin: 'sqlite3', cmd: 'pkg install -y sqlite' },
+  { id: 'ffmpeg', name: 'FFmpeg', desc: 'Video & audio processing', bin: 'ffmpeg', cmd: 'pkg install -y ffmpeg' },
+  { id: 'yt-dlp', name: 'yt-dlp', desc: 'Video & audio downloader', bin: 'yt-dlp', cmd: 'pkg install -y yt-dlp' },
+  { id: 'rsync', name: 'Rsync', desc: 'File sync & backup', bin: 'rsync', cmd: 'pkg install -y rsync' },
 ];
 const installRuns = new Map(); // id -> { child, logs[], running, exitCode }
 function execCheck(cmd) {
@@ -468,9 +468,9 @@ async function apiInstallList(res) {
 
 async function apiInstallStart(req, res, id) {
   const item = INSTALL_ITEMS.find((x) => x.id === id);
-  if (!item) throw new Error('Paket tidak dikenal');
+  if (!item) throw new Error('Unknown package');
   const rec = installRuns.get(id);
-  if (rec && rec.running) throw new Error('Instalasi sedang berjalan');
+  if (rec && rec.running) throw new Error('Installation already running');
   const child = spawn('bash', ['-c', item.cmd], { cwd: HOME });
   const nr = { child, logs: [], running: true, exitCode: null };
   installRuns.set(id, nr);
@@ -478,8 +478,8 @@ async function apiInstallStart(req, res, id) {
   push('$ ' + item.cmd + '\n');
   child.stdout.on('data', (d) => push(d.toString('utf8')));
   child.stderr.on('data', (d) => push(d.toString('utf8')));
-  child.on('exit', (code) => { nr.running = false; nr.exitCode = code; push('\n--- selesai (exit ' + code + ') ---\n'); sendTelegram((code === 0 ? '✅' : '❌') + ' Install ' + item.name + ' selesai (exit ' + code + ')'); });
-  child.on('error', (e) => { nr.running = false; nr.exitCode = -1; push('\n--- gagal: ' + e.message + ' ---\n'); });
+  child.on('exit', (code) => { nr.running = false; nr.exitCode = code; push('\n--- selesai (exit ' + code + ') ---\n'); sendTelegram((code === 0 ? '✅' : '❌') + ' Install ' + item.name + ' finished (exit ' + code + ')'); });
+  child.on('error', (e) => { nr.running = false; nr.exitCode = -1; push('\n--- failed: ' + e.message + ' ---\n'); });
   sendJson(res, 200, { ok: true });
 }
 
@@ -495,14 +495,14 @@ const DB_FILE = path.join(DATA_DIR, 'db.json');
 const dbConns = {}; // type -> { kind, conn }
 
 function dbValidType(t) {
-  if (t !== 'mysql' && t !== 'postgres') throw new Error('Tipe database tidak valid');
+  if (t !== 'mysql' && t !== 'postgres') throw new Error('Invalid database type');
 }
 
 function dbLib(t) {
   try {
     return t === 'mysql' ? require('mysql2/promise') : require('pg');
   } catch {
-    throw new Error('Modul database belum terinstall. Jalankan: npm install');
+    throw new Error('Database module not installed. Run: npm install');
   }
 }
 function loadDbConfigs() {
@@ -544,11 +544,11 @@ function dbDisconnect(t) {
   const rec = dbConns[t];
   if (!rec) return;
   delete dbConns[t];
-  (async () => { try { await rec.conn.end(); } catch { /* abaikan */ } })();
+  (async () => { try { await rec.conn.end(); } catch { /* ignore */ } })();
 }
 async function dbQuery(t, sql, params) {
   const rec = dbConns[t];
-  if (!rec) throw new Error('Belum terkoneksi');
+  if (!rec) throw new Error('Not connected');
   if (rec.kind === 'mysql') {
     const [rows, fields] = await rec.conn.query(sql, params || []);
     return {
@@ -572,10 +572,10 @@ async function withPgDb(t, cfg, db, fn) {
   });
   await client.connect();
   try { return await fn(client); }
-  finally { try { await client.end(); } catch { /* abaikan */ } }
+  finally { try { await client.end(); } catch { /* ignore */ } }
 }
 async function dbListDatabases(t) {
-  if (!dbConns[t]) throw new Error('Belum terkoneksi');
+  if (!dbConns[t]) throw new Error('Not connected');
   if (t === 'mysql') {
     const r = await dbQuery(t, 'SHOW DATABASES');
     return r.rows.map((x) => x.Database);
@@ -615,7 +615,7 @@ async function apiDbTest(req, res, t) {
     }
     sendJson(res, 200, { ok: true });
   } catch (e) {
-    sendJson(res, 200, { ok: false, error: e.message || 'Gagal konek' });
+    sendJson(res, 200, { ok: false, error: e.message || 'Connection failed' });
   }
 }
 async function apiDbConnect(req, res, t) {
@@ -641,7 +641,7 @@ async function apiDbConnect(req, res, t) {
     }
   } catch (e) {
     dbDisconnect(t);
-    return sendJson(res, 400, { error: 'Gagal konek: ' + (e.message || 'unknown') });
+    return sendJson(res, 400, { error: 'Connection failed: ' + (e.message || 'unknown') });
   }
   sendJson(res, 200, { ok: true, databases: await dbListDatabases(t) });
 }
@@ -657,7 +657,7 @@ async function apiDbDatabases(res, t) {
 async function apiDbTables(url, res, t) {
   dbValidType(t);
   const db = url.searchParams.get('db');
-  if (!db) throw new Error('Database wajib dipilih');
+  if (!db) throw new Error('Database must be selected');
   if (t === 'mysql') {
     const r = await dbQuery(t, 'SELECT table_name AS t FROM information_schema.tables WHERE table_schema=? ORDER BY table_name', [db]);
     sendJson(res, 200, { tables: r.rows.map((x) => x.t) });
@@ -674,8 +674,8 @@ async function apiDbRows(url, res, t) {
   dbValidType(t);
   const db = url.searchParams.get('db');
   const table = url.searchParams.get('table');
-  if (!db || !table) throw new Error('Database dan tabel wajib diisi');
-  if (db.length > 128 || table.length > 128) throw new Error('Nama terlalu panjang');
+  if (!db || !table) throw new Error('Database and table are required');
+  if (db.length > 128 || table.length > 128) throw new Error('Name too long');
   if (t === 'mysql') {
     const r = await dbQuery(t, 'SELECT * FROM ??.?? LIMIT 50', [db, table]);
     sendJson(res, 200, { fields: r.fields, rows: r.rows });
@@ -692,8 +692,8 @@ async function apiDbQuery(req, res, t) {
   dbValidType(t);
   const body = JSON.parse((await readBody(req, 1e6)).toString('utf8'));
   const sql = (body.sql || '').trim();
-  if (!sql) throw new Error('SQL kosong');
-  if (sql.length > 20000) throw new Error('SQL terlalu panjang');
+  if (!sql) throw new Error('SQL is empty');
+  if (sql.length > 20000) throw new Error('SQL too long');
   const r = await dbQuery(t, sql);
   sendJson(res, 200, { fields: r.fields, rows: r.rows, affected: r.affected });
 }
@@ -719,8 +719,8 @@ function telegramSend(botToken, chatId, text) {
       let b = '';
       r.on('data', (c) => { b += c; });
       r.on('end', () => {
-        try { const j = JSON.parse(b); j.ok ? resolve() : reject(new Error(j.description || 'Gagal kirim')); }
-        catch { reject(new Error('Respon Telegram tak valid')); }
+        try { const j = JSON.parse(b); j.ok ? resolve() : reject(new Error(j.description || 'Failed to send')); }
+        catch { reject(new Error('Invalid Telegram response')); }
       });
     });
     req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
@@ -735,12 +735,12 @@ function sendTelegram(text) {
   try {
     const tg = loadSettings().telegram || {};
     if (!tg.enabled || !tg.botToken || !tg.chatId) return;
-    telegramSend(tg.botToken, tg.chatId, text).catch((e) => console.log('Telegram gagal:', e.message));
-  } catch (e) { console.log('Telegram gagal:', e.message); }
+    telegramSend(tg.botToken, tg.chatId, text).catch((e) => console.log('Telegram failed:', e.message));
+  } catch (e) { console.log('Telegram failed:', e.message); }
 }
 async function apiSettingsGet(res) {
   const s = loadSettings();
-  sendJson(res, 200, { username: config.username, telegram: s.telegram || {}, version: '1.10.0' });
+  sendJson(res, 200, { username: config.username, telegram: s.telegram || {}, version: '1.13.0' });
 }
 async function apiSettingsPost(req, res) {
   const body = JSON.parse((await readBody(req, 1e6)).toString('utf8'));
@@ -749,20 +749,20 @@ async function apiSettingsPost(req, res) {
   s.telegram = { botToken: String(tg.botToken || ''), chatId: String(tg.chatId || ''),
     enabled: !!tg.enabled, commandsEnabled: tg.commandsEnabled === undefined ? true : !!tg.commandsEnabled };
   saveSettings(s);
-  try { startTelegramPoll(); } catch { /* abaikan */ }
+  try { startTelegramPoll(); } catch { /* ignore */ }
   sendJson(res, 200, { ok: true });
 }
 async function apiTelegramTest(res) {
   const tg = loadSettings().telegram || {};
   if (!tg.enabled || !tg.botToken || !tg.chatId) {
-    return sendJson(res, 400, { ok: false, error: 'Isi bot token & chat ID dan aktifkan dulu' });
+    return sendJson(res, 400, { ok: false, error: 'Fill in bot token & chat ID and enable it first' });
   }
   try {
-    await telegramSend(tg.botToken, tg.chatId, 'Test notifikasi Terwo berhasil!');
+    await telegramSend(tg.botToken, tg.chatId, 'Terwo notification test successful!');
     sendJson(res, 200, { ok: true });
   } catch (e) { sendJson(res, 400, { ok: false, error: e.message }); }
 }
-// ================= Perintah bot Telegram (polling) =================
+// ================= Telegram bot commands (polling) =================
 let tgPollTimer = null, tgPollOffset = 0;
 function tgApiGet(botToken, apiPath) {
   return new Promise((resolve, reject) => {
@@ -773,8 +773,8 @@ function tgApiGet(botToken, apiPath) {
       let b = '';
       r.on('data', (c) => { b += c; });
       r.on('end', () => {
-        try { const j = JSON.parse(b); j.ok ? resolve(j) : reject(new Error(j.description || 'API gagal')); }
-        catch { reject(new Error('Respon tak valid')); }
+        try { const j = JSON.parse(b); j.ok ? resolve(j) : reject(new Error(j.description || 'API failed')); }
+        catch { reject(new Error('Invalid response')); }
       });
     });
     req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
@@ -797,7 +797,7 @@ async function tgReply(tg, cmd) {
   const run = s.sites.filter((x) => x.running).length;
   switch (cmd) {
     case '/help':
-      return 'Perintah bot:\n/status ringkasan\n/ram detail RAM\n/cpu detail CPU\n/battery info baterai\n/sites daftar website';
+      return 'Bot commands:\n/status summary\n/ram RAM details\n/cpu CPU details\n/battery battery info\n/sites list websites';
     case '/status': {
       const bat = s.battery ? s.battery.percentage + '%' : 'n/a';
       return '🖥 ' + s.hostname + ' | ⏱ ' + fmtUptime(s.uptime) + '\n' +
@@ -807,14 +807,14 @@ async function tgReply(tg, cmd) {
         '🌐 Website ' + run + '/' + s.sites.length + ' running';
     }
     case '/ram':
-      return '🧠 RAM — Total ' + mb(s.mem.total) + ' MB, terpakai ' + mb(s.mem.used) + ' MB (' + s.mem.percent + '%), bebas ' + mb(s.mem.free) + ' MB';
+      return '🧠 RAM — Total ' + mb(s.mem.total) + ' MB, used ' + mb(s.mem.used) + ' MB (' + s.mem.percent + '%), free ' + mb(s.mem.free) + ' MB';
     case '/cpu':
       return '⚙️ CPU (' + s.cpu.cores + ' core) — load ' + s.cpu.load1 + '/' + s.cpu.load5 + '/' + s.cpu.load15 + ', uptime ' + fmtUptime(s.uptime);
     case '/battery': case '/bat':
-      return s.battery ? '🔋 Baterai ' + s.battery.percentage + '% (' + s.battery.status + ')' : '🔋 Baterai tidak tersedia (butuh Termux:API)';
+      return s.battery ? '🔋 Battery ' + s.battery.percentage + '% (' + s.battery.status + ')' : '🔋 Battery unavailable (needs Termux:API)';
     case '/sites':
-      return s.sites.length ? '🌐 Website:\n' + s.sites.map((x) => (x.running ? '🟢' : '🔴') + ' ' + x.name + ' (' + x.type + ') :' + x.port).join('\n') : 'Belum ada website';
-    default: return 'Perintah tak dikenal. Ketik /help.';
+      return s.sites.length ? '🌐 Website:\n' + s.sites.map((x) => (x.running ? '🟢' : '🔴') + ' ' + x.name + ' (' + x.type + ') :' + x.port).join('\n') : 'No websites yet';
+    default: return 'Unknown command. Type /help.';
   }
 }
 async function tgPollOnce() {
@@ -827,12 +827,12 @@ async function tgPollOnce() {
     tgPollOffset = Math.max(tgPollOffset, (u.update_id || 0) + 1);
     const m = u.message;
     if (!m || typeof m.text !== 'string') continue;
-    if (String(m.chat && m.chat.id) !== String(tg.chatId)) { console.log('Telegram: pesan dari chat asing diabaikan'); continue; }
+    if (String(m.chat && m.chat.id) !== String(tg.chatId)) { console.log('Telegram: message from unknown chat ignored'); continue; }
     const cmd = m.text.trim().split(' ')[0].split('@')[0].toLowerCase();
     try {
       const reply = await tgReply(tg, cmd);
       await telegramSend(tg.botToken, tg.chatId, reply);
-    } catch (e) { console.log('Telegram balas gagal:', e.message); }
+    } catch (e) { console.log('Telegram reply failed:', e.message); }
   }
 }
 function stopTelegramPoll() {
@@ -868,7 +868,7 @@ async function apiChangePassword2(req, res) {
     return sendJson(res, 400, { error: 'Password baru minimal 6 karakter' });
   }
   if (b.newPassword !== b.confirmPassword) {
-    return sendJson(res, 400, { error: 'Konfirmasi password tidak cocok' });
+    return sendJson(res, 400, { error: 'Password confirmation does not match' });
   }
   config.salt = crypto.randomBytes(16).toString('hex');
   config.hash = hashPassword(b.newPassword, config.salt);
@@ -895,7 +895,7 @@ function execTimeout(cmd, opts) {
     exec('bash -c ' + JSON.stringify(cmd), {
       timeout: opts.timeout || 30000, cwd: opts.cwd || HOME, maxBuffer: 50 * 1024 * 1024,
     }, (err, stdout, stderr) => {
-      if (err) reject(new Error(String(stderr || err.message || 'Gagal').slice(-800)));
+      if (err) reject(new Error(String(stderr || err.message || 'Failed').slice(-800)));
       else resolve(String(stdout || ''));
     });
   });
@@ -916,12 +916,12 @@ async function getStatsData() {
       const tot = parseInt(cols[1], 10) * 1024, used = parseInt(cols[2], 10) * 1024, av = parseInt(cols[3], 10) * 1024;
       disk = { total: tot, used, free: av, percent: tot ? Math.round((used / tot) * 100) : 0 };
     }
-  } catch { /* abaikan */ }
+  } catch { /* ignore */ }
   let battery = null;
   try {
     const b = JSON.parse(await execTimeout('termux-battery-status', { timeout: 3000 }));
     battery = { percentage: b.percentage, status: b.status };
-  } catch { /* abaikan */ }
+  } catch { /* ignore */ }
   return {
     hostname: os.hostname(), uptime: Math.floor(os.uptime()), time: Date.now(),
     cpu: { load1: +load[0].toFixed(2), load5: +load[1].toFixed(2), load15: +load[2].toFixed(2), cores: os.cpus().length },
@@ -959,11 +959,11 @@ function nginxConfBlock(p) {
 }
 function ensureNginxInclude() {
   const confPath = path.join(termuxPrefix(), 'etc', 'nginx', 'nginx.conf');
-  if (!fs.existsSync(confPath)) throw new Error('nginx.conf tidak ditemukan. Install nginx dulu via menu Store.');
+  if (!fs.existsSync(confPath)) throw new Error('nginx.conf not found. Install nginx first via the Store menu.');
   let txt = fs.readFileSync(confPath, 'utf8');
   if (txt.includes(NGINX_SITES_DIR)) return;
   const hi = txt.indexOf('http {');
-  if (hi === -1) throw new Error('Blok http tidak ditemukan di nginx.conf');
+  if (hi === -1) throw new Error('http block not found in nginx.conf');
   let depth = 0, i = txt.indexOf('{', hi);
   for (; i < txt.length; i++) {
     if (txt[i] === '{') depth++;
@@ -983,7 +983,7 @@ async function nginxWriteAll() {
   }
   ensureNginxInclude();
   const t = await execOk('nginx -t', 15000);
-  if (!t.ok) throw new Error('nginx -t gagal: ' + t.out.slice(-500));
+  if (!t.ok) throw new Error('nginx -t failed: ' + t.out.slice(-500));
 }
 async function nginxTryReload() {
   const r = await execOk('nginx -s reload', 10000);
@@ -997,18 +997,18 @@ async function apiNginxService(req, res) {
   const body = JSON.parse((await readBody(req, 1e6)).toString('utf8'));
   const act = body.action;
   if (act === 'start') {
-    await mustBin('nginx', 'nginx belum terinstall. Install dulu via menu Store.');
+    await mustBin('nginx', 'nginx is not installed. Install it first via the Store menu.');
     const r = await execOk('nginx', 10000);
-    if (!r.ok) throw new Error('Gagal start nginx: ' + r.out.slice(-500));
+    if (!r.ok) throw new Error('Failed to start nginx: ' + r.out.slice(-500));
   } else if (act === 'stop') {
     const r = await execOk('nginx -s stop', 10000);
-    if (!r.ok) throw new Error('Gagal stop nginx: ' + r.out.slice(-500));
+    if (!r.ok) throw new Error('Failed to stop nginx: ' + r.out.slice(-500));
   } else if (act === 'reload') {
-    await mustBin('nginx', 'nginx belum terinstall. Install dulu via menu Store.');
+    await mustBin('nginx', 'nginx is not installed. Install it first via the Store menu.');
     const t = await execOk('nginx -t', 15000);
-    if (!t.ok) throw new Error('nginx -t gagal: ' + t.out.slice(-500));
+    if (!t.ok) throw new Error('nginx -t failed: ' + t.out.slice(-500));
     await execOk('nginx -s reload', 10000);
-  } else throw new Error('Aksi tidak dikenal');
+  } else throw new Error('Unknown action');
   sendJson(res, 200, { ok: true });
 }
 function apiNginxList(res) {
@@ -1017,16 +1017,16 @@ function apiNginxList(res) {
 async function apiNginxCreate(req, res) {
   const b = JSON.parse((await readBody(req, 1e6)).toString('utf8'));
   const name = (b.name || '').trim();
-  if (!name) throw new Error('Nama wajib diisi');
+  if (!name) throw new Error('Name is required');
   const listenPort = parseInt(b.listenPort, 10);
   if (!listenPort || listenPort < 1024 || listenPort > 65535) {
-    throw new Error('Listen port harus 1024-65535 (Termux tak bisa bind <1024 tanpa root)');
+    throw new Error('Listen port must be 1024-65535 (Termux cannot bind <1024 without root)');
   }
   const targetPort = parseInt(b.targetPort, 10);
-  if (!targetPort || targetPort < 1 || targetPort > 65535) throw new Error('Target port tidak valid');
+  if (!targetPort || targetPort < 1 || targetPort > 65535) throw new Error('Invalid target port');
   const domain = (b.domain || '').trim();
-  if (domain && !/^[a-zA-Z0-9.*_-]+$/.test(domain)) throw new Error('Domain tidak valid');
-  if (nginxProxies.some((p) => p.listenPort === listenPort)) throw new Error('Listen port sudah dipakai proxy lain');
+  if (domain && !/^[a-zA-Z0-9.*_-]+$/.test(domain)) throw new Error('Invalid domain');
+  if (nginxProxies.some((p) => p.listenPort === listenPort)) throw new Error('Listen port is already used by another proxy');
   const p = { id: crypto.randomBytes(4).toString('hex'), name, listenPort, domain, targetPort, created: Date.now() };
   nginxProxies.push(p);
   saveNginx();
@@ -1037,7 +1037,7 @@ async function apiNginxCreate(req, res) {
 async function apiNginxDelete(res, id) {
   nginxProxies = nginxProxies.filter((p) => p.id !== id);
   saveNginx();
-  try { await nginxWriteAll(); } catch { /* abaikan, conf sudah dihapus */ }
+  try { await nginxWriteAll(); } catch { /* ignore, conf already deleted */ }
   await nginxTryReload();
   sendJson(res, 200, { ok: true });
 }
@@ -1048,7 +1048,7 @@ function cronSpawnWrite(lines) {
     let err = '';
     child.stderr.on('data', (d) => { err += d.toString('utf8'); });
     child.on('error', reject);
-    child.on('exit', (code) => code === 0 ? resolve() : reject(new Error('crontab gagal: ' + err.slice(-300))));
+    child.on('exit', (code) => code === 0 ? resolve() : reject(new Error('crontab failed: ' + err.slice(-300))));
     child.stdin.write(lines.join('\n') + '\n');
     child.stdin.end();
   });
@@ -1080,14 +1080,14 @@ async function apiCronStatus(res) {
 async function apiCronService(req, res) {
   const body = JSON.parse((await readBody(req, 1e6)).toString('utf8'));
   if (body.action === 'start') {
-    await mustBin('crond', 'crond belum terinstall. Install Cronie via menu Store.');
+    await mustBin('crond', 'crond is not installed. Install Cronie via the Store menu.');
     const child = spawn('crond', [], { detached: true, stdio: 'ignore' });
     child.unref();
     sendJson(res, 200, { ok: true });
   } else if (body.action === 'stop') {
     await execOk('pkill -x crond', 5000);
     sendJson(res, 200, { ok: true });
-  } else throw new Error('Aksi tidak dikenal');
+  } else throw new Error('Unknown action');
 }
 async function apiCronJobs(res) {
   const jobs = [];
@@ -1104,7 +1104,7 @@ async function apiCronAdd(req, res) {
   const command = (b.command || '').trim();
   if (!/^(\S+\s+){4}\S+$/.test(schedule)) throw new Error('Jadwal harus 5 field cron');
   if (!command) throw new Error('Command wajib diisi');
-  await mustBin('crontab', 'crontab tidak tersedia di sistem ini');
+  await mustBin('crontab', 'crontab is not available on this system');
   const lines = await cronLines();
   const job = { id: crypto.randomBytes(4).toString('hex'), name, schedule, command };
   lines.push(cronJobLine(job));
@@ -1147,7 +1147,7 @@ async function apiBackupList(res) {
       const meta = JSON.parse(fs.readFileSync(path.join(BACKUP_DIR, f), 'utf8'));
       const st = fs.statSync(path.join(BACKUP_DIR, meta.file));
       out.push({ name: meta.name, file: meta.file, type: meta.type, source: meta.source, size: st.size, mtime: st.mtimeMs, created: meta.created });
-    } catch { /* abaikan */ }
+    } catch { /* ignore */ }
   }
   out.sort((a, b) => b.created - a.created);
   sendJson(res, 200, { backups: out });
@@ -1155,18 +1155,18 @@ async function apiBackupList(res) {
 async function apiBackupCreate(req, res) {
   const b = JSON.parse((await readBody(req, 1e6)).toString('utf8'));
   const type = b.type;
-  if (type !== 'folder' && type !== 'mysql' && type !== 'postgres') throw new Error('Tipe tidak valid');
+  if (type !== 'folder' && type !== 'mysql' && type !== 'postgres') throw new Error('Invalid type');
   let name = (b.name || '').trim() || ('backup-' + backupStamp());
   name = name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  if (!name) throw new Error('Nama tidak valid');
+  if (!name) throw new Error('Invalid name');
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
-  if (backupMeta(name)) throw new Error('Nama backup sudah dipakai');
+  if (backupMeta(name)) throw new Error('Backup name already taken');
   let file, source;
   if (type === 'folder') {
     const src = safePath(b.source || '.');
     const st = await fsp.stat(src).catch(() => null);
-    if (!st) throw new Error('Source tidak ditemukan');
-    await mustBin('zip', 'Paket "zip" belum terinstall — install dulu lewat menu Store');
+    if (!st) throw new Error('Source not found');
+    await mustBin('zip', 'Package "zip" is not installed — install it first via the Store menu');
     file = name + '.zip';
     source = relOf(src);
     await execTimeout('zip -rq ' + sq(path.join(BACKUP_DIR, file)) + ' .', { cwd: src, timeout: 120000 });
@@ -1178,11 +1178,11 @@ async function apiBackupCreate(req, res) {
     file = name + '.sql';
     const dest = path.join(BACKUP_DIR, file);
     if (type === 'mysql') {
-      await mustBin('mysqldump', 'mysqldump tidak ditemukan. Install mysql via menu Store.');
+      await mustBin('mysqldump', 'mysqldump not found. Install mysql via the Store menu.');
       const pw = cfg.password ? ' --password=' + sq(cfg.password) : '';
       await execTimeout('mysqldump -h ' + sq(cfg.host) + ' -P ' + cfg.port + ' -u ' + sq(cfg.user) + pw + ' ' + sq(dbName) + ' > ' + sq(dest), { timeout: 120000 });
     } else {
-      await mustBin('pg_dump', 'pg_dump tidak ditemukan. Install postgres via menu Store.');
+      await mustBin('pg_dump', 'pg_dump not found. Install postgres via the Store menu.');
       await execTimeout('PGPASSWORD=' + sq(cfg.password) + ' pg_dump -h ' + sq(cfg.host) + ' -p ' + cfg.port + ' -U ' + sq(cfg.user) + ' -d ' + sq(dbName) + ' > ' + sq(dest), { timeout: 120000 });
     }
   }
@@ -1191,7 +1191,7 @@ async function apiBackupCreate(req, res) {
 }
 function apiBackupDownload(res, name) {
   const meta = backupMeta(name);
-  if (!meta || /[^a-zA-Z0-9._-]/.test(name)) throw new Error('Backup tidak ditemukan');
+  if (!meta || /[^a-zA-Z0-9._-]/.test(name)) throw new Error('Backup not found');
   const full = path.join(BACKUP_DIR, meta.file);
   const st = fs.statSync(full);
   if (!st.isFile()) throw new Error('File backup hilang');
@@ -1204,29 +1204,29 @@ function apiBackupDownload(res, name) {
 }
 function apiBackupDelete(res, name) {
   const meta = backupMeta(name);
-  if (!meta || /[^a-zA-Z0-9._-]/.test(name)) throw new Error('Backup tidak ditemukan');
-  try { fs.unlinkSync(path.join(BACKUP_DIR, meta.file)); } catch { /* abaikan */ }
-  try { fs.unlinkSync(path.join(BACKUP_DIR, name + '.json')); } catch { /* abaikan */ }
+  if (!meta || /[^a-zA-Z0-9._-]/.test(name)) throw new Error('Backup not found');
+  try { fs.unlinkSync(path.join(BACKUP_DIR, meta.file)); } catch { /* ignore */ }
+  try { fs.unlinkSync(path.join(BACKUP_DIR, name + '.json')); } catch { /* ignore */ }
   sendJson(res, 200, { ok: true });
 }
 async function apiBackupRestore(req, res, name) {
   const meta = backupMeta(name);
-  if (!meta || /[^a-zA-Z0-9._-]/.test(name)) throw new Error('Backup tidak ditemukan');
+  if (!meta || /[^a-zA-Z0-9._-]/.test(name)) throw new Error('Backup not found');
   const b = JSON.parse((await readBody(req, 1e6)).toString('utf8'));
   const full = path.join(BACKUP_DIR, meta.file);
   if (meta.type === 'folder') {
     const target = safePath(b.targetPath || meta.source || '.');
-    await mustBin('unzip', 'Paket "unzip" belum terinstall — install dulu lewat menu Store');
+    await mustBin('unzip', 'Package "unzip" is not installed — install it first via the Store menu');
     fs.mkdirSync(target, { recursive: true });
     await execTimeout('unzip -o ' + sq(full) + ' -d ' + sq(target), { timeout: 120000 });
   } else {
     const cfg = normCfg(meta.type, (loadDbConfigs()[meta.type]) || {});
     if (meta.type === 'mysql') {
-      await mustBin('mysql', 'mysql tidak ditemukan. Install mysql via menu Store.');
+      await mustBin('mysql', 'mysql not found. Install mysql via the Store menu.');
       const pw = cfg.password ? ' --password=' + sq(cfg.password) : '';
       await execTimeout('mysql -h ' + sq(cfg.host) + ' -P ' + cfg.port + ' -u ' + sq(cfg.user) + pw + ' ' + sq(meta.source) + ' < ' + sq(full), { timeout: 120000 });
     } else {
-      await mustBin('psql', 'psql tidak ditemukan. Install postgres via menu Store.');
+      await mustBin('psql', 'psql not found. Install postgres via the Store menu.');
       await execTimeout('PGPASSWORD=' + sq(cfg.password) + ' psql -h ' + sq(cfg.host) + ' -p ' + cfg.port + ' -U ' + sq(cfg.user) + ' -d ' + sq(meta.source) + ' < ' + sq(full), { timeout: 120000 });
     }
   }
@@ -1236,8 +1236,8 @@ async function apiBackupRestore(req, res, name) {
 async function apiFileZip(req, res) {
   const b = JSON.parse((await readBody(req, 1e6)).toString('utf8'));
   const full = safePath(b.path || '');
-  if (full === ROOT) throw new Error('Tidak bisa zip root');
-  await mustBin('zip', 'Paket "zip" belum terinstall — install dulu lewat menu Store');
+  if (full === ROOT) throw new Error('Cannot zip root');
+  await mustBin('zip', 'Package "zip" is not installed — install it first via the Store menu');
   await execTimeout('zip -rq ' + sq(full + '.zip') + ' ' + sq(path.basename(full)), { cwd: path.dirname(full), timeout: 60000 });
   sendJson(res, 200, { ok: true, zipPath: relOf(full + '.zip') });
 }
@@ -1245,7 +1245,7 @@ async function apiFileUnzip(req, res) {
   const b = JSON.parse((await readBody(req, 1e6)).toString('utf8'));
   const full = safePath(b.path || '');
   if (!/\.zip$/i.test(full)) throw new Error('Bukan file zip');
-  await mustBin('unzip', 'Paket "unzip" belum terinstall — install dulu lewat menu Store');
+  await mustBin('unzip', 'Package "unzip" is not installed — install it first via the Store menu');
   await execTimeout('unzip -o ' + sq(full) + ' -d ' + sq(path.dirname(full)), { timeout: 60000 });
   sendJson(res, 200, { ok: true });
 }
@@ -1258,7 +1258,7 @@ async function apiFilePreview(url, res) {
   const mime = PREVIEW_MIME[path.extname(full).toLowerCase()];
   if (!mime) throw new Error('Preview hanya untuk gambar');
   const st = await fsp.stat(full);
-  if (!st.isFile() || st.size > 20 * 1024 * 1024) throw new Error('File tidak valid');
+  if (!st.isFile() || st.size > 20 * 1024 * 1024) throw new Error('Invalid file');
   res.writeHead(200, { 'Content-Type': mime, 'Content-Length': st.size });
   fs.createReadStream(full).pipe(res);
 }
@@ -1269,7 +1269,7 @@ function healthCheckOnce() {
     if (!running.has(s.id)) { siteHealth.delete(s.id); continue; }
     const req = http.get({ host: '127.0.0.1', port: s.port, path: '/', timeout: 5000 }, (r) => {
       r.resume();
-      if (siteHealth.get(s.id)) sendTelegram('Website "' + s.name + '" pulih (port ' + s.port + ')');
+      if (siteHealth.get(s.id)) sendTelegram('Website "' + s.name + '" recovered (port ' + s.port + ')');
       siteHealth.set(s.id, false);
     });
     req.on('timeout', () => req.destroy());
@@ -1279,15 +1279,19 @@ function healthCheckOnce() {
     });
   }
 }
-setInterval(() => { try { healthCheckOnce(); } catch (e) { console.log('Health check gagal:', e.message); } }, 60000);
+setInterval(() => { try { healthCheckOnce(); } catch (e) { console.log('Health check failed:', e.message); } }, 60000);
 
 // ================= HTTP server =================
 const server = http.createServer((req, res) => {
   handleRequest(req, res).catch((e) => {
-    if (!res.headersSent) sendJson(res, 400, { error: (e && e.message) || 'Gagal' });
-    else { try { res.end(); } catch { /* abaikan */ } }
+    if (!res.headersSent) sendJson(res, 400, { error: (e && e.message) || 'Failed' });
+    else { try { res.end(); } catch { /* ignore */ } }
   });
 });
+
+// App pages served by clean slugs (no .html). Each slug renders the same
+// shell; the client activates the matching tab from the URL path.
+const APP_PAGES = new Set(['dashboard', 'website', 'database', 'files', 'cron', 'backup', 'settings', 'terminal', 'store']);
 
 async function handleRequest(req, res) {
   try {
@@ -1295,12 +1299,14 @@ async function handleRequest(req, res) {
     const p = url.pathname;
 
     if (p === '/') {
-      res.writeHead(302, { Location: isAuthed(req) ? '/app.html' : '/login.html' });
+      res.writeHead(302, { Location: isAuthed(req) ? '/dashboard' : '/login' });
       return res.end();
     }
-    if (p === '/login.html') return servePublic(res, 'login.html');
+    if (p === '/login') return servePublic(res, 'login.html');
+    if (p === '/login.html') { res.writeHead(302, { Location: '/login' }); return res.end(); }
     // aset publik untuk halaman login (tanpa auth)
     if (p === '/tailwind.css') return servePublic(res, 'tailwind.css');
+    if (p === '/favicon.svg') return servePublic(res, 'favicon.svg');
     if (p === '/vendor/lucide.min.js') return servePublic(res, 'vendor/lucide.min.js');
 
         if (p === '/api/login' && req.method === 'POST') {
@@ -1321,12 +1327,13 @@ async function handleRequest(req, res) {
 
     // ---- semua di bawah ini wajib login ----
     if (!isAuthed(req)) {
-      if (p.startsWith('/api/') || p === '/term') return sendJson(res, 401, { error: 'Belum login' });
-      res.writeHead(302, { Location: '/login.html' });
+      if (p.startsWith('/api/') || p === '/term') return sendJson(res, 401, { error: 'Not logged in' });
+      res.writeHead(302, { Location: '/login' });
       return res.end();
     }
 
-    if (p === '/app.html') return servePublic(res, 'app.html');
+    if (p === '/app.html') { res.writeHead(302, { Location: '/dashboard' }); return res.end(); }
+    if (APP_PAGES.has(p.slice(1))) return servePublic(res, 'app.html');
     if (p === '/app.js') return servePublic(res, 'app.js');
     if (p === '/style.css') return servePublic(res, 'style.css');
     if (p === '/vendor/xterm.js') return servePublic(res, 'vendor/xterm.js');
@@ -1369,7 +1376,7 @@ async function handleRequest(req, res) {
 
     // install center
     if (p === '/api/install' && req.method === 'GET') return apiInstallList(res);
-    const im = p.match(/^\/api\/install\/([a-z]+)\/(start|log)$/);
+    const im = p.match(/^\/api\/install\/([a-z0-9-]+)\/(start|log)$/);
     if (im) {
       if (im[2] === 'start' && req.method === 'POST') return apiInstallStart(req, res, im[1]);
       if (im[2] === 'log' && req.method === 'GET') return apiInstallLog(res, im[1]);
@@ -1428,9 +1435,9 @@ async function handleRequest(req, res) {
     if (req.method === 'POST' && p === '/api/files/zip') return apiFileZip(req, res);
     if (req.method === 'POST' && p === '/api/files/unzip') return apiFileUnzip(req, res);
     if (req.method === 'GET' && p === '/api/files/preview') return apiFilePreview(url, res);
-sendJson(res, 404, { error: 'Tidak ditemukan' });
+sendJson(res, 404, { error: 'Not found' });
   } catch (e) {
-    sendJson(res, 400, { error: e.message || 'Gagal' });
+    sendJson(res, 400, { error: e.message || 'Failed' });
   }
 }
 
@@ -1443,7 +1450,7 @@ server.on('upgrade', (req, socket, head) => {
   try {
     const url = new URL(req.url, 'http://x');
     ok = url.pathname === '/term' && isAuthed(req);
-  } catch { /* abaikan */ }
+  } catch { /* ignore */ }
   if (!ok) { socket.destroy(); return; }
   wss.handleUpgrade(req, socket, head, (ws) => {
     const shell = process.env.SHELL || 'bash';
@@ -1482,10 +1489,10 @@ server.on('upgrade', (req, socket, head) => {
 });
 
 server.listen(PORT, HOST, () => {
-  try { startTelegramPoll(); } catch { /* abaikan */ }
-  console.log('Terwo jalan di http://' + HOST + ':' + PORT);
-  console.log('Direktori kerja: ' + ROOT);
+  try { startTelegramPoll(); } catch { /* ignore */ }
+  console.log('Terwo running at http://' + HOST + ':' + PORT);
+  console.log('Working directory: ' + ROOT);
   if (HOST === '0.0.0.0') {
-    console.log('PERINGATAN: panel terbuka ke semua network interface. Pastikan di balik proteksi!');
+    console.log('WARNING: panel is open on all network interfaces. Make sure it is protected!');
   }
 });

@@ -1,10 +1,10 @@
 'use strict';
-/* Frontend Terwo */
+/* Terwo frontend */
 
 // ---------- helper ----------
 async function api(path, opts) {
   const r = await fetch(path, opts);
-  if (r.status === 401) { location.href = '/login.html'; throw new Error('Sesi habis'); }
+  if (r.status === 401) { location.href = '/login'; throw new Error('Session expired'); }
   return r;
 }
 function fmtSize(n) {
@@ -14,30 +14,30 @@ function fmtSize(n) {
   return (n / 1073741824).toFixed(2) + ' GB';
 }
 function fmtDate(ms) {
-  return new Date(ms).toLocaleString('id-ID');
+  return new Date(ms).toLocaleString('en-US');
 }
 function fmtUptime(sec) {
   sec = Math.floor(sec || 0);
   const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
-  if (d > 0) return d + 'h ' + h + 'j';
-  if (h > 0) return h + 'j ' + m + 'm';
+  if (d > 0) return d + 'd ' + h + 'h';
+  if (h > 0) return h + 'h ' + m + 'm';
   return m + 'm';
 }
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
-// ---------- ikon lucide ----------
+// ---------- lucide icons ----------
 function refreshIcons() { try { if (window.lucide) lucide.createIcons(); } catch (e) {} }
 function ic(n, c) { return '<i data-lucide="' + n + '" class="' + (c || 'h-4 w-4') + '"></i>'; }
 function dot() { return '<span class="h-1.5 w-1.5 rounded-full bg-current"></span>'; }
-// ---------- tema dark/light (tersimpan di localStorage 'terwo-theme') ----------
+// ---------- dark/light theme (stored in localStorage 'terwo-theme') ----------
 function getTheme() {
   try { return localStorage.getItem('terwo-theme') === 'light' ? 'light' : 'dark'; }
   catch (e) { return 'dark'; }
 }
 function updateThemeUI(t) {
   const icon = t === 'light' ? 'moon' : 'sun';
-  const label = t === 'light' ? 'Mode Gelap' : 'Mode Terang';
+  const label = t === 'light' ? 'Dark mode' : 'Light mode';
   document.querySelectorAll('.btn-theme').forEach((b) => {
     const hasLabel = b.querySelector('span') !== null;
     b.innerHTML = ic(icon, 'h-4 w-4') + (hasLabel ? '<span>' + label + '</span>' : '');
@@ -55,23 +55,69 @@ function badgeOk(t) { return '<span class="badge badge-ok">' + dot() + esc(t) + 
 function badgeOff(t) { return '<span class="badge badge-off">' + dot() + esc(t) + '</span>'; }
 function badgeWarn(t) { return '<span class="badge badge-warn">' + dot() + esc(t) + '</span>'; }
 
-// ---------- tabs ----------
+// ---------- tabs (one slug per page) ----------
+const TAB_SLUGS = { dashboard: 'dashboard', web: 'website', db: 'database', files: 'files', cron: 'cron', backup: 'backup', settings: 'settings', term: 'terminal', install: 'store' };
+const SLUG_TABS = {};
+for (const k of Object.keys(TAB_SLUGS)) SLUG_TABS[TAB_SLUGS[k]] = k;
+const TAB_TITLES = { dashboard: 'Dashboard', web: 'Website', db: 'Database', files: 'File Manager', cron: 'Cron', backup: 'Backup', settings: 'Settings', term: 'Terminal', install: 'Store' };
+function tabFromPath() { return SLUG_TABS[location.pathname.replace(/^\/+|\/+$/g, '')] || 'dashboard'; }
+function showTab(id, push) {
+  if (!TAB_SLUGS[id]) id = 'dashboard';
+  document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x.dataset.tab === id));
+  document.querySelectorAll('.tabpane').forEach((x) => x.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  document.title = TAB_TITLES[id] + ' — Terwo';
+  if (id === 'install') loadInstall();
+  if (id === 'db') loadDbConfig();
+  if (id === 'web') loadNginx();
+  if (id === 'dashboard') startStats(); else stopStats();
+  if (id === 'cron') loadCron();
+  if (id === 'term') termTabOpen();
+  if (id === 'backup') loadBackups();
+  if (id === 'settings') loadSettings();
+  if (push) history.pushState({ tab: id }, '', '/' + TAB_SLUGS[id]);
+}
 document.querySelectorAll('.tab').forEach((t) => {
-  t.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x.dataset.tab === t.dataset.tab));
-    document.querySelectorAll('.tabpane').forEach((x) => x.classList.remove('active'));
-    t.classList.add('active');
-    document.getElementById('tab-' + t.dataset.tab).classList.add('active');
-    if (t.dataset.tab === 'install') loadInstall();
-    if (t.dataset.tab === 'db') loadDbConfig();
-    if (t.dataset.tab === 'web') loadNginx();
-    if (t.dataset.tab === 'dashboard') startStats(); else stopStats();
-    if (t.dataset.tab === 'cron') loadCron();
-    if (t.dataset.tab === 'term') termTabOpen();
-    if (t.dataset.tab === 'backup') loadBackups();
-    if (t.dataset.tab === 'settings') loadSettings();
-  });
+  t.addEventListener('click', () => showTab(t.dataset.tab, true));
 });
+window.addEventListener('popstate', () => showTab(tabFromPath(), false));
+showTab(tabFromPath(), false);
+
+// ---------- confirm dialog ----------
+function confirmDialog({ title, message, okText, danger = true, icon = 'alert-triangle' } = {}) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('confirm-modal');
+    document.getElementById('confirm-title').textContent = title || 'Are you sure?';
+    document.getElementById('confirm-msg').textContent = message || '';
+    const iconEl = document.getElementById('confirm-icon');
+    iconEl.className = danger ? 'text-err' : 'text-warn';
+    iconEl.innerHTML = '<i data-lucide="' + icon + '" class="h-5 w-5"></i>';
+    const okBtn = document.getElementById('confirm-ok');
+    okBtn.textContent = okText || 'Delete';
+    okBtn.className = (danger ? 'btn-danger' : 'btn') + ' btn-sm';
+    refreshIcons();
+    modal.classList.remove('hidden');
+    let done = false;
+    const close = (val) => {
+      if (done) return;
+      done = true;
+      modal.classList.add('hidden');
+      document.getElementById('confirm-ok').removeEventListener('click', onOk);
+      document.getElementById('confirm-cancel').removeEventListener('click', onCancel);
+      modal.removeEventListener('click', onBackdrop);
+      document.removeEventListener('keydown', onKey);
+      resolve(val);
+    };
+    const onOk = () => close(true);
+    const onCancel = () => close(false);
+    const onBackdrop = (e) => { if (e.target === modal) close(false); };
+    const onKey = (e) => { if (e.key === 'Escape') close(false); };
+    document.getElementById('confirm-ok').addEventListener('click', onOk);
+    document.getElementById('confirm-cancel').addEventListener('click', onCancel);
+    modal.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onKey);
+  });
+}
 
 // ---------- sysinfo ----------
 (async () => {
@@ -84,33 +130,16 @@ document.querySelectorAll('.tab').forEach((t) => {
       row('memory-stick', fmtSize(j.totalmem - j.freemem) + ' / ' + fmtSize(j.totalmem)) +
       row('folder', esc(j.root));
     refreshIcons();
-  } catch { /* abaikan */ }
+  } catch { /* ignore */ }
 })();
 
-// ---------- logout & ganti password ----------
+// ---------- logout ----------
 document.getElementById('btn-logout').addEventListener('click', async () => {
+  const ok = await confirmDialog({ title: 'Log out?', message: 'End this session and return to the login page.', okText: 'Log out', danger: false, icon: 'log-out' });
+  if (!ok) return;
   await api('/api/logout', { method: 'POST' }).catch(() => {});
-  location.href = '/login.html';
+  location.href = '/login';
 });
-const pwModal = document.getElementById('passwd-modal');
-document.getElementById('btn-passwd').addEventListener('click', () => pwModal.classList.remove('hidden'));
-document.getElementById('passwd-close').addEventListener('click', () => pwModal.classList.add('hidden'));
-document.getElementById('pw-save').addEventListener('click', async () => {
-  const err = document.getElementById('pw-err');
-  err.textContent = '';
-  const r = await api('/api/chpasswd', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      old: document.getElementById('pw-old').value,
-      new: document.getElementById('pw-new').value,
-    }),
-  });
-  const j = await r.json();
-  if (j.ok) location.href = '/login.html';
-  else err.textContent = j.error || 'Gagal';
-});
-
 // ---------- file manager ----------
 let curDir = '';
 const crumbsEl = document.getElementById('crumbs');
@@ -186,24 +215,24 @@ async function loadFiles() {
         }, 'Download');
         mkBtn('pencil', () => openEditor(e.name), 'Edit');
         if (/\.(png|jpe?g|gif|webp|svg|ico)$/i.test(e.name)) mkBtn('eye', () => previewImage(e.name), 'Preview');
-        if (/\.zip$/i.test(e.name)) mkBtn('package-open', () => unzipEntry(e.name), 'Ekstrak ZIP');
+        if (/\.zip$/i.test(e.name)) mkBtn('package-open', () => unzipEntry(e.name), 'Extract ZIP');
       }
-      mkBtn('archive', () => zipEntry(e.name), 'Arsipkan ZIP');
+      mkBtn('archive', () => zipEntry(e.name), 'Archive as ZIP');
       mkBtn('pencil-line', () => renameEntry(e.name), 'Rename');
-      mkBtn('trash-2', () => deleteEntry(e.name), 'Hapus');
+      mkBtn('trash-2', () => deleteEntry(e.name), 'Delete');
       listEl.appendChild(tr);
     }
     if (!j.entries.length) {
-      listEl.innerHTML += '<tr><td colspan="4" class="muted">Folder kosong</td></tr>';
+      listEl.innerHTML += '<tr><td colspan="4" class="muted">Empty folder</td></tr>';
     }
     refreshIcons();
   } catch (e) {
-    showFileErr(e.message || 'Gagal memuat');
+    showFileErr(e.message || 'Failed to load');
   }
 }
-// file manager: aksi
+// file manager: actions
 document.getElementById('btn-mkdir').addEventListener('click', async () => {
-  const n = prompt('Nama folder:');
+  const n = prompt('Folder name:');
   if (!n) return;
   const r = await api('/api/mkdir', {
     method: 'POST',
@@ -211,10 +240,10 @@ document.getElementById('btn-mkdir').addEventListener('click', async () => {
     body: JSON.stringify({ path: curDir, name: n }),
   });
   const j = await r.json();
-  if (j.ok) loadFiles(); else showFileErr(j.error || 'Gagal');
+  if (j.ok) loadFiles(); else showFileErr(j.error || 'Failed');
 });
 document.getElementById('btn-touch').addEventListener('click', async () => {
-  const n = prompt('Nama file:');
+  const n = prompt('File name:');
   if (!n) return;
   const r = await api('/api/touch', {
     method: 'POST',
@@ -222,20 +251,20 @@ document.getElementById('btn-touch').addEventListener('click', async () => {
     body: JSON.stringify({ path: curDir, name: n }),
   });
   const j = await r.json();
-  if (j.ok) loadFiles(); else showFileErr(j.error || 'Gagal');
+  if (j.ok) loadFiles(); else showFileErr(j.error || 'Failed');
 });
 async function deleteEntry(name) {
-  if (!confirm('Hapus "' + name + '"?')) return;
+  if (!(await confirmDialog({ title: 'Delete file?', message: 'Delete "' + name + '"? This cannot be undone.' }))) return;
   const r = await api('/api/delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path: curDir, name }),
   });
   const j = await r.json();
-  if (j.ok) loadFiles(); else showFileErr(j.error || 'Gagal');
+  if (j.ok) loadFiles(); else showFileErr(j.error || 'Failed');
 }
 async function renameEntry(name) {
-  const n = prompt('Nama baru:', name);
+  const n = prompt('New name:', name);
   if (!n || n === name) return;
   const r = await api('/api/rename', {
     method: 'POST',
@@ -243,7 +272,7 @@ async function renameEntry(name) {
     body: JSON.stringify({ path: curDir, from: name, to: n }),
   });
   const j = await r.json();
-  if (j.ok) loadFiles(); else showFileErr(j.error || 'Gagal');
+  if (j.ok) loadFiles(); else showFileErr(j.error || 'Failed');
 }
 async function zipEntry(name) {
   const r = await api('/api/files/zip', {
@@ -252,7 +281,7 @@ async function zipEntry(name) {
     body: JSON.stringify({ path: entryPath(name) }),
   });
   const j = await r.json();
-  if (j.ok) loadFiles(); else showFileErr(j.error || 'Gagal');
+  if (j.ok) loadFiles(); else showFileErr(j.error || 'Failed');
 }
 async function unzipEntry(name) {
   const r = await api('/api/files/unzip', {
@@ -261,7 +290,7 @@ async function unzipEntry(name) {
     body: JSON.stringify({ path: entryPath(name) }),
   });
   const j = await r.json();
-  if (j.ok) loadFiles(); else showFileErr(j.error || 'Gagal');
+  if (j.ok) loadFiles(); else showFileErr(j.error || 'Failed');
 }
 // upload (JSON base64)
 document.getElementById('btn-upload').addEventListener('click', () => {
@@ -281,12 +310,12 @@ document.getElementById('file-input').addEventListener('change', (ev) => {
         body: JSON.stringify({ path: curDir, name: f.name, data: b64 }),
       });
       const j = await r.json();
-      if (j.ok) loadFiles(); else showFileErr(j.error || 'Upload gagal');
+      if (j.ok) loadFiles(); else showFileErr(j.error || 'Upload failed');
     } catch (e) {
-      showFileErr(e.message || 'Upload gagal');
+      showFileErr(e.message || 'Upload failed');
     }
   };
-  rd.onerror = () => showFileErr('Gagal membaca file');
+  rd.onerror = () => showFileErr('Failed to read file');
   rd.readAsDataURL(f);
 });
 
@@ -297,7 +326,7 @@ let edName = null;
 async function openEditor(name) {
   edName = name;
   document.getElementById('editor-title').textContent = 'Edit: ' + name;
-  edText.value = 'memuat…';
+  edText.value = 'loading…';
   edModal.classList.remove('hidden');
   try {
     const r = await api('/api/read', {
@@ -320,7 +349,7 @@ document.getElementById('editor-save').addEventListener('click', async () => {
   });
   const j = await r.json();
   if (j.ok) { edModal.classList.add('hidden'); loadFiles(); }
-  else showFileErr(j.error || 'Gagal menyimpan');
+  else showFileErr(j.error || 'Failed to save');
 });
 // ---------- preview gambar ----------
 const pvModal = document.getElementById('preview-modal');
@@ -349,7 +378,7 @@ function initTerm() {
     cursorBlink: true,
     fontSize: 14,
     fontFamily: 'Menlo, Consolas, monospace',
-    theme: { background: '#0a0e14', foreground: '#e8eef6', cursor: '#818cf8', selectionBackground: '#6366f1' },
+    theme: { background: '#14171b', foreground: '#e8ecef', cursor: '#20a53a', selectionBackground: 'rgba(32,165,58,0.35)' },
   });
   if (window.FitAddon && window.FitAddon.FitAddon) {
     fitAddon = new window.FitAddon.FitAddon();
@@ -368,15 +397,15 @@ function initTerm() {
 }
 function connectTerm() {
   const st = document.getElementById('term-status');
-  st.textContent = 'menghubungkan…';
+  st.textContent = 'connecting…';
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   termWs = new WebSocket(proto + '//' + location.host + '/term');
   termWs.onopen = () => {
-    st.innerHTML = badgeOk('Terhubung');
+    st.innerHTML = badgeOk('Connected');
     if (fitAddon) termWs.send(JSON.stringify({ t: 'rs', c: term.cols, r: term.rows }));
     refreshIcons();
   };
-  termWs.onclose = () => { st.innerHTML = badgeOff('Terputus'); refreshIcons(); };
+  termWs.onclose = () => { st.innerHTML = badgeOff('Disconnected'); refreshIcons(); };
   termWs.onmessage = (ev) => {
     try {
       const m = JSON.parse(ev.data);
@@ -398,7 +427,7 @@ document.getElementById('btn-term-paste').addEventListener('click', async () => 
     const txt = await navigator.clipboard.readText();
     if (txt && termWs && termWs.readyState === 1) termWs.send(JSON.stringify({ t: 'in', d: txt }));
   } catch (e) {
-    alert('Clipboard tidak bisa diakses browser. Gunakan Ctrl+Shift+V / klik kanan.');
+    alert('Clipboard is not accessible to the browser. Use Ctrl+Shift+V / right-click.');
   }
 });
 
@@ -425,10 +454,10 @@ async function loadStats() {
       card('cpu', 'CPU', (c.load1 != null ? c.load1.toFixed(2) : '—'), (c.cores || '—') + ' core', '') +
       card('memory-stick', 'RAM', (m.percent != null ? m.percent + '%' : '—'), fmtSize(m.used || 0) + ' / ' + fmtSize(m.total || 0), bar(m.percent)) +
       card('hard-drive', 'Disk', d ? d.percent + '%' : '—', d ? fmtSize(d.used) + ' / ' + fmtSize(d.total) : '', d ? bar(d.percent) : '') +
-      card('battery-medium', 'Baterai', j.battery ? j.battery.percentage + '%' : '—', j.battery ? esc(j.battery.status || '') : '', '') +
+      card('battery-medium', 'Battery', j.battery ? j.battery.percentage + '%' : '—', j.battery ? esc(j.battery.status || '') : '', '') +
       card('timer', 'Uptime', fmtUptime(j.uptime), fmtDate(j.time), '');
     refreshIcons();
-  } catch (e) { /* abaikan */ }
+  } catch (e) { /* ignore */ }
 }
 async function loadDashSites() {
   try {
@@ -436,16 +465,16 @@ async function loadDashSites() {
     const el = document.getElementById('dash-sites');
     el.innerHTML = '';
     if (!j.sites || !j.sites.length) {
-      el.innerHTML = '<tr><td colspan="4" class="muted">Belum ada website</td></tr>';
+      el.innerHTML = '<tr><td colspan="4" class="muted">No websites yet</td></tr>';
     } else {
       for (const s of j.sites) {
         const tr = document.createElement('tr');
-        tr.innerHTML = '<td>' + esc(s.name) + '</td><td class="muted">' + esc(s.type) + '</td><td class="muted">' + s.port + '</td><td>' + (s.running ? badgeOk('Jalan') : badgeOff('Mati')) + '</td>';
+        tr.innerHTML = '<td>' + esc(s.name) + '</td><td class="muted">' + esc(s.type) + '</td><td class="muted">' + s.port + '</td><td>' + (s.running ? badgeOk('Running') : badgeOff('Stopped')) + '</td>';
         el.appendChild(tr);
       }
     }
     refreshIcons();
-  } catch { /* abaikan */ }
+  } catch { /* ignore */ }
 }
 
 // ---------- website ----------
@@ -454,13 +483,13 @@ document.querySelectorAll('[data-stype]').forEach((b) => {
   b.addEventListener('click', () => {
     document.querySelectorAll('[data-stype]').forEach((x) => x.classList.toggle('active', x === b));
     siteType = b.dataset.stype;
-    document.querySelector('#site-add span').textContent = 'Tambah (' + b.textContent.trim() + ')';
+    document.querySelector('#site-add span').textContent = 'Add (' + b.textContent.trim() + ')';
     loadSites();
   });
 });
 const siteModal = document.getElementById('site-modal');
 document.getElementById('site-add').addEventListener('click', () => {
-  document.getElementById('site-modal-title').textContent = 'Tambah Website (' + siteType + ')';
+  document.getElementById('site-modal-title').textContent = 'Add Website (' + siteType + ')';
   document.getElementById('site-name').value = '';
   document.getElementById('site-path').value = '';
   document.getElementById('site-port').value = '';
@@ -477,7 +506,7 @@ document.getElementById('site-save').addEventListener('click', async () => {
     port: parseInt(document.getElementById('site-port').value, 10),
     type: siteType,
   };
-  if (!body.name || !body.path || !body.port) { err.textContent = 'Isi semua field'; return; }
+  if (!body.name || !body.path || !body.port) { err.textContent = 'Fill in all fields'; return; }
   const r = await api('/api/sites', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -485,7 +514,7 @@ document.getElementById('site-save').addEventListener('click', async () => {
   });
   const j = await r.json();
   if (j.ok) { siteModal.classList.add('hidden'); loadSites(); loadDashSites(); }
-  else err.textContent = j.error || 'Gagal';
+  else err.textContent = j.error || 'Failed';
 });
 async function loadSites() {
   try {
@@ -499,7 +528,7 @@ async function loadSites() {
         '<td>' + esc(s.name) + '</td>' +
         '<td class="muted font-mono text-[12.5px]">' + esc(s.path) + '</td>' +
         '<td class="muted">' + s.port + '</td>' +
-        '<td>' + (s.running ? badgeOk('Jalan') : badgeOff('Mati')) + '</td>' +
+        '<td>' + (s.running ? badgeOk('Running') : badgeOff('Stopped')) + '</td>' +
         '<td><div class="row-actions"></div></td>';
       const acts = tr.querySelector('.row-actions');
       const mk = (icn, fn, title, danger) => {
@@ -512,21 +541,21 @@ async function loadSites() {
       if (s.running) { mk('square', () => siteAct('stop', s.id), 'Stop'); mk('rotate-cw', () => siteAct('restart', s.id), 'Restart'); }
       else mk('play', () => siteAct('start', s.id), 'Start');
       mk('scroll-text', () => showLogs(s), 'Log');
-      mk('trash-2', () => delSite(s), 'Hapus', true);
+      mk('trash-2', () => delSite(s), 'Delete', true);
       el.appendChild(tr);
     }
     if (!list.length) {
-      el.innerHTML = '<tr><td colspan="5" class="muted">Belum ada website ' + esc(siteType) + '</td></tr>';
+      el.innerHTML = '<tr><td colspan="5" class="muted">No ' + esc(siteType) + ' websites yet</td></tr>';
     }
     refreshIcons();
-  } catch { /* abaikan */ }
+  } catch { /* ignore */ }
 }
 async function siteAct(act, id) {
   await api('/api/sites/' + id + '/' + act, { method: 'POST' }).catch(() => {});
   loadSites(); loadDashSites();
 }
 async function delSite(s) {
-  if (!confirm('Hapus website "' + s.name + '"?')) return;
+  if (!(await confirmDialog({ title: 'Delete website?', message: 'Delete website "' + s.name + '"? This cannot be undone.' }))) return;
   await api('/api/sites/' + s.id + '/delete', { method: 'POST' }).catch(() => {});
   loadSites(); loadDashSites();
 }
@@ -535,13 +564,13 @@ const logsModal = document.getElementById('logs-modal');
 document.getElementById('logs-close').addEventListener('click', () => logsModal.classList.add('hidden'));
 async function showLogs(s) {
   document.getElementById('logs-title').textContent = 'Log: ' + s.name;
-  document.getElementById('logs-body').textContent = 'memuat…';
+  document.getElementById('logs-body').textContent = 'loading…';
   logsModal.classList.remove('hidden');
   try {
     const j = await (await api('/api/sites/' + s.id + '/logs')).json();
-    document.getElementById('logs-body').textContent = (j.logs ? j.logs : 'Log kosong') + '\n';
+    document.getElementById('logs-body').textContent = (j.logs ? j.logs : 'Log empty') + '\n';
   } catch (e) {
-    document.getElementById('logs-body').textContent = 'Gagal memuat log';
+    document.getElementById('logs-body').textContent = 'Failed to load log';
   }
 }
 
@@ -550,7 +579,7 @@ async function loadNginx() {
   try {
     const j = await (await api('/api/nginx/status')).json();
     document.getElementById('nginx-status').innerHTML = j.running ? badgeOk('Nginx jalan') : badgeOff('Nginx mati');
-  } catch { /* abaikan */ }
+  } catch { /* ignore */ }
   try {
     const j = await (await api('/api/nginx/proxies')).json();
     const el = document.getElementById('px-list');
@@ -561,15 +590,15 @@ async function loadNginx() {
         '<td>' + esc(p.name) + '</td><td class="muted">' + p.listenPort + '</td><td class="muted">' + esc(p.domain || '—') + '</td><td class="muted">' + p.targetPort + '</td>' +
         '<td><div class="row-actions"><button class="mini text-err border-err/30">' + ic('trash-2', 'h-[15px] w-[15px]') + '</button></div></td>';
       tr.querySelector('button').addEventListener('click', async () => {
-        if (!confirm('Hapus proxy "' + p.name + '"?')) return;
+        if (!(await confirmDialog({ title: 'Delete proxy?', message: 'Delete proxy "' + p.name + '"? This cannot be undone.' }))) return;
         await api('/api/nginx/proxies/' + p.id, { method: 'DELETE' }).catch(() => {});
         loadNginx();
       });
       el.appendChild(tr);
     }
-    if (!(j.proxies || []).length) el.innerHTML = '<tr><td colspan="5" class="muted">Belum ada proxy</td></tr>';
+    if (!(j.proxies || []).length) el.innerHTML = '<tr><td colspan="5" class="muted">No proxies yet</td></tr>';
     refreshIcons();
-  } catch { /* abaikan */ }
+  } catch { /* ignore */ }
 }
 async function nginxService(action) {
   await api('/api/nginx/service', {
@@ -596,7 +625,7 @@ document.getElementById('px-add').addEventListener('click', async () => {
     }),
   });
   const j = await r.json();
-  if (j.ok) loadNginx(); else err.textContent = j.error || 'Gagal';
+  if (j.ok) loadNginx(); else err.textContent = j.error || 'Failed';
 });
 
 // ---------- store (install) ----------
@@ -605,7 +634,7 @@ async function loadInstall() {
     const j = await (await api('/api/install')).json();
     renderInstall(j.items || []);
   } catch (e) {
-    document.getElementById('install-grid').innerHTML = '<p class="err">Gagal memuat</p>';
+    document.getElementById('install-grid').innerHTML = '<p class="err">Failed to load</p>';
   }
 }
 function renderInstall(items) {
@@ -614,10 +643,10 @@ function renderInstall(items) {
   for (const it of items) {
     const d = document.createElement('div');
     d.className = 'card';
-    const badge = it.installing ? badgeWarn('Berjalan…') : (it.installed ? badgeOk('Terinstall') : badgeOff('Belum install'));
+    const badge = it.installing ? badgeWarn('Running…') : (it.installed ? badgeOk('Installed') : badgeOff('Not installed'));
     const desc = it.desc ? '<p class="mt-1 text-[13px] text-muted">' + esc(it.desc) + '</p>' : '';
     const btn = it.installed
-      ? '<button class="btn-ghost btn-sm" data-r="1">' + ic('rotate-cw', 'h-4 w-4') + 'Install ulang</button>'
+      ? '<button class="btn-ghost btn-sm" data-r="1">' + ic('rotate-cw', 'h-4 w-4') + 'Reinstall</button>'
       : '<button class="btn btn-sm" data-i="1">' + ic('download', 'h-4 w-4') + 'Install</button>';
     d.innerHTML =
       '<div class="flex items-start justify-between gap-3">' +
@@ -643,10 +672,10 @@ async function startInstall(id, label) {
   try {
     const r = await api('/api/install/' + id + '/start', { method: 'POST' });
     const j = await r.json();
-    if (!j.ok) { alert(j.error || 'Gagal memulai install'); return; }
-  } catch (e) { alert(e.message || 'Gagal'); return; }
+    if (!j.ok) { alert(j.error || 'Failed to start install'); return; }
+  } catch (e) { alert(e.message || 'Failed'); return; }
   document.getElementById('install-title').textContent = 'Install: ' + label;
-  document.getElementById('install-body').textContent = 'memulai…\n';
+  document.getElementById('install-body').textContent = 'starting…\n';
   instModal.classList.remove('hidden');
   const poll = async () => {
     try {
@@ -656,7 +685,7 @@ async function startInstall(id, label) {
       el.scrollTop = el.scrollHeight;
       if (!j.running) {
         stopInstallPoll();
-        el.textContent += '\n--- selesai (exit ' + j.exitCode + ') ---\n';
+        el.textContent += '\n--- done (exit ' + j.exitCode + ') ---\n';
         loadInstall();
       }
     } catch { /* coba lagi */ }
@@ -687,11 +716,11 @@ async function loadDbConfig() {
     dbConnected = !!j.connected;
     updateDbStatus();
     if (dbConnected) loadDbList();
-  } catch { /* abaikan */ }
+  } catch { /* ignore */ }
 }
 function updateDbStatus() {
   const st = document.getElementById('db-status');
-  st.innerHTML = dbConnected ? badgeOk('Terkoneksi (' + dbType + ')') : badgeOff('Belum konek');
+  st.innerHTML = dbConnected ? badgeOk('Connected (' + dbType + ')') : badgeOff('Not connected');
   document.getElementById('db-browser').classList.toggle('hidden', !dbConnected);
   refreshIcons();
 }
@@ -713,7 +742,7 @@ document.getElementById('db-test').addEventListener('click', async () => {
     body: JSON.stringify(dbForm()),
   });
   const j = await r.json();
-  err.textContent = j.ok ? 'Koneksi OK' : ('Gagal: ' + (j.error || ''));
+  err.textContent = j.ok ? 'Connection OK' : ('Failed: ' + (j.error || ''));
 });
 document.getElementById('db-connect').addEventListener('click', async () => {
   const err = document.getElementById('db-err');
@@ -729,7 +758,7 @@ document.getElementById('db-connect').addEventListener('click', async () => {
     updateDbStatus();
     loadDbList();
   } else {
-    err.textContent = j.error || 'Gagal konek';
+    err.textContent = j.error || 'Connection failed';
   }
 });
 document.getElementById('db-disconnect').addEventListener('click', async () => {
@@ -749,7 +778,7 @@ async function loadDbList() {
       b.addEventListener('click', () => loadDbTables(d));
       el.appendChild(b);
     }
-  } catch { /* abaikan */ }
+  } catch { /* ignore */ }
 }
 async function loadDbTables(db) {
   try {
@@ -764,16 +793,16 @@ async function loadDbTables(db) {
       b.addEventListener('click', () => browseTable(db, t));
       el.appendChild(b);
     }
-  } catch { /* abaikan */ }
+  } catch { /* ignore */ }
 }
 async function browseTable(db, table) {
   const box = document.getElementById('db-result');
-  box.innerHTML = '<p class="muted text-sm">memuat…</p>';
+  box.innerHTML = '<p class="muted text-sm">loading…</p>';
   try {
     const j = await (await api('/api/db/' + dbType + '/rows?db=' + encodeURIComponent(db) + '&table=' + encodeURIComponent(table))).json();
     box.innerHTML = renderTable(j.fields || [], j.rows || []);
   } catch (e) {
-    box.innerHTML = '<p class="err">' + esc(e.message || 'Gagal') + '</p>';
+    box.innerHTML = '<p class="err">' + esc(e.message || 'Failed') + '</p>';
   }
 }
 function renderTable(fields, rows) {
@@ -789,7 +818,7 @@ document.getElementById('db-run').addEventListener('click', runQuery);
 async function runQuery() {
   const sql = document.getElementById('db-sql').value;
   const box = document.getElementById('db-result');
-  box.innerHTML = '<p class="muted text-sm">menjalankan…</p>';
+  box.innerHTML = '<p class="muted text-sm">running…</p>';
   try {
     const r = await api('/api/db/' + dbType + '/query', {
       method: 'POST',
@@ -801,7 +830,7 @@ async function runQuery() {
     box.innerHTML = renderTable(j.fields || [], j.rows || []) +
       (j.affected != null ? '<p class="hint">' + j.affected + ' baris terpengaruh</p>' : '');
   } catch (e) {
-    box.innerHTML = '<p class="err">' + esc(e.message || 'Gagal') + '</p>';
+    box.innerHTML = '<p class="err">' + esc(e.message || 'Failed') + '</p>';
   }
 }
 // ---------- cron ----------
@@ -815,7 +844,7 @@ async function loadCron() {
     const j = await (await api('/api/cron/status')).json();
     document.getElementById('cron-status').innerHTML = j.running ? badgeOk('crond jalan') : badgeOff('crond mati');
     refreshIcons();
-  } catch { /* abaikan */ }
+  } catch { /* ignore */ }
   try {
     const j = await (await api('/api/cron/jobs')).json();
     const el = document.getElementById('cj-list');
@@ -824,7 +853,7 @@ async function loadCron() {
       const tr = document.createElement('tr');
       tr.innerHTML =
         '<td>' + esc(c.name) + '</td><td class="muted font-mono text-[12.5px]">' + esc(c.schedule) + '</td><td class="muted font-mono text-[12.5px]">' + esc(c.command) + '</td>' +
-        '<td>' + (c.enabled ? badgeOk('Aktif') : badgeOff('Mati')) + '</td>' +
+        '<td>' + (c.enabled ? badgeOk('Enabled') : badgeOff('Stopped')) + '</td>' +
         '<td><div class="row-actions"></div></td>';
       const acts = tr.querySelector('.row-actions');
       const mk = (icn, fn, title) => {
@@ -836,17 +865,17 @@ async function loadCron() {
       mk(c.enabled ? 'pause' : 'play', async () => {
         await api('/api/cron/jobs/' + c.id + '/toggle', { method: 'POST' }).catch(() => {});
         loadCron();
-      }, c.enabled ? 'Nonaktifkan' : 'Aktifkan');
+      }, c.enabled ? 'Disable' : 'Enable');
       mk('trash-2', async () => {
-        if (!confirm('Hapus job "' + c.name + '"?')) return;
+        if (!(await confirmDialog({ title: 'Delete cron job?', message: 'Delete job "' + c.name + '"? This cannot be undone.' }))) return;
         await api('/api/cron/jobs/' + c.id, { method: 'DELETE' }).catch(() => {});
         loadCron();
-      }, 'Hapus');
+      }, 'Delete');
       el.appendChild(tr);
     }
-    if (!(j.jobs || []).length) el.innerHTML = '<tr><td colspan="5" class="muted">Belum ada job</td></tr>';
+    if (!(j.jobs || []).length) el.innerHTML = '<tr><td colspan="5" class="muted">No jobs yet</td></tr>';
     refreshIcons();
-  } catch { /* abaikan */ }
+  } catch { /* ignore */ }
 }
 async function cronService(action) {
   await api('/api/cron/service', {
@@ -874,7 +903,7 @@ document.getElementById('cj-add').addEventListener('click', async () => {
   });
   const j = await r.json();
   if (j.ok) { document.getElementById('cj-name').value = ''; document.getElementById('cj-cmd').value = ''; loadCron(); }
-  else err.textContent = j.error || 'Gagal';
+  else err.textContent = j.error || 'Failed';
 });
 
 // ---------- backup ----------
@@ -900,7 +929,7 @@ async function loadBackups() {
         location.href = '/api/backups/' + encodeURIComponent(b.name) + '/download';
       }, 'Download');
       mk('rotate-ccw', async () => {
-        if (!confirm('Restore backup "' + b.name + '"? File saat ini bisa tertimpa.')) return;
+        if (!(await confirmDialog({ title: 'Restore backup?', message: 'Restore backup "' + b.name + '"? Current files may be overwritten.', okText: 'Restore', danger: false, icon: 'rotate-ccw' }))) return;
         await api('/api/backups/' + encodeURIComponent(b.name) + '/restore', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -909,15 +938,15 @@ async function loadBackups() {
         loadBackups();
       }, 'Restore');
       mk('trash-2', async () => {
-        if (!confirm('Hapus backup "' + b.name + '"?')) return;
+        if (!(await confirmDialog({ title: 'Delete backup?', message: 'Delete backup "' + b.name + '"? This cannot be undone.' }))) return;
         await api('/api/backups/' + encodeURIComponent(b.name), { method: 'DELETE' }).catch(() => {});
         loadBackups();
-      }, 'Hapus', true);
+      }, 'Delete', true);
       el.appendChild(tr);
     }
-    if (!(j.backups || []).length) el.innerHTML = '<tr><td colspan="5" class="muted">Belum ada backup</td></tr>';
+    if (!(j.backups || []).length) el.innerHTML = '<tr><td colspan="5" class="muted">No backups yet</td></tr>';
     refreshIcons();
-  } catch { /* abaikan */ }
+  } catch { /* ignore */ }
 }
 document.getElementById('bk-create').addEventListener('click', async () => {
   const err = document.getElementById('bk-err');
@@ -933,7 +962,7 @@ document.getElementById('bk-create').addEventListener('click', async () => {
   });
   const j = await r.json();
   if (j.ok) { document.getElementById('bk-name').value = ''; document.getElementById('bk-source').value = ''; loadBackups(); }
-  else err.textContent = j.error || 'Gagal';
+  else err.textContent = j.error || 'Failed';
 });
 
 // ---------- settings ----------
@@ -947,7 +976,7 @@ async function loadSettings() {
     document.getElementById('set-tg-chat').value = tg.chatId || '';
     document.getElementById('set-tg-on').checked = !!tg.enabled;
     document.getElementById('set-tg-cmd').checked = tg.commandsEnabled !== false;
-  } catch { /* abaikan */ }
+  } catch { /* ignore */ }
 }
 document.getElementById('set-user-save').addEventListener('click', async () => {
   const err = document.getElementById('set-user-err');
@@ -958,13 +987,13 @@ document.getElementById('set-user-save').addEventListener('click', async () => {
     body: JSON.stringify({ username: document.getElementById('set-newuser').value.trim() }),
   });
   const j = await r.json();
-  if (j.ok) loadSettings(); else err.textContent = j.error || 'Gagal';
+  if (j.ok) loadSettings(); else err.textContent = j.error || 'Failed';
 });
 document.getElementById('set-pw-save').addEventListener('click', async () => {
   const err = document.getElementById('set-pw-err');
   err.textContent = '';
   const nw = document.getElementById('set-pw-new').value;
-  if (nw !== document.getElementById('set-pw-conf').value) { err.textContent = 'Konfirmasi password tidak cocok'; return; }
+  if (nw !== document.getElementById('set-pw-conf').value) { err.textContent = 'Password confirmation does not match'; return; }
   const r = await api('/api/auth/change-password', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -979,9 +1008,9 @@ document.getElementById('set-pw-save').addEventListener('click', async () => {
     document.getElementById('set-pw-old').value = '';
     document.getElementById('set-pw-new').value = '';
     document.getElementById('set-pw-conf').value = '';
-    err.textContent = 'Password diganti — silakan login ulang';
-    setTimeout(() => { location.href = '/login.html'; }, 1200);
-  } else err.textContent = j.error || 'Gagal';
+    err.textContent = 'Password changed — please log in again';
+    setTimeout(() => { location.href = '/login'; }, 1200);
+  } else err.textContent = j.error || 'Failed';
 });
 document.getElementById('set-tg-save').addEventListener('click', async () => {
   const err = document.getElementById('set-tg-err');
@@ -999,19 +1028,19 @@ document.getElementById('set-tg-save').addEventListener('click', async () => {
     }),
   });
   const j = await r.json();
-  if (!j.ok) err.textContent = j.error || 'Gagal';
+  if (!j.ok) err.textContent = j.error || 'Failed';
 });
 document.getElementById('set-tg-test').addEventListener('click', async () => {
   const err = document.getElementById('set-tg-err');
-  err.textContent = 'mengirim…';
+  err.textContent = 'sending…';
   const r = await api('/api/settings/test-telegram', { method: 'POST' });
   const j = await r.json();
-  err.textContent = j.ok ? 'Pesan test terkirim' : (j.error || 'Gagal');
+  err.textContent = j.ok ? 'Test message sent' : (j.error || 'Failed');
 });
 document.getElementById('set-logout-all').addEventListener('click', async () => {
-  if (!confirm('Logout semua sesi?')) return;
+  if (!(await confirmDialog({ title: 'Log out all sessions?', message: 'End all active sessions on every device. You will need to log in again.', okText: 'Log out all', danger: false, icon: 'log-out' }))) return;
   await api('/api/auth/logout-all', { method: 'POST' }).catch(() => {});
-  location.href = '/login.html';
+  location.href = '/login';
 });
 
 // ---------- init ----------

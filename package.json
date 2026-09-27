@@ -4,7 +4,7 @@
     "pg": "^8.13.0",
     "ws": "^8.18.0"
   },
-  "description": "Panel web sederhana untuk Termux: file manager + terminal + info sistem",
+  "description": "Simple web panel for Termux: file manager + terminal + system info",
   "license": "MIT",
   "main": "panel.js",
   "name": "terwo",
@@ -12,7 +12,7 @@
     "start": "node panel.js",
     "build:css": "tailwindcss -i public/input.css -o public/tailwind.css --minify"
   },
-  "version": "1.10.0",
+  "version": "1.13.0",
   "optionalDependencies": {
     "node-pty": "^1.0.0"
   },

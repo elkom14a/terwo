@@ -16,36 +16,36 @@
   --color-border: var(--c-border);
 }
 
-/* Tema gelap = default */
+/* Tema gelap = default (ala aaPanel: netral + aksen hijau) */
 :root {
   color-scheme: dark;
-  --c-bg: #0a0e14;
-  --c-surface: #101724;
-  --c-surface2: #16202f;
-  --c-accent: #6366f1;
-  --c-accent-h: #818cf8;
-  --c-text: #e8eef6;
-  --c-muted: #8b98a9;
+  --c-bg: #1b1e22;
+  --c-surface: #23272d;
+  --c-surface2: #2b3037;
+  --c-accent: #20a53a;
+  --c-accent-h: #35b24a;
+  --c-text: #e8ecef;
+  --c-muted: #9aa4ad;
   --c-ok: #22c55e;
   --c-err: #ef4444;
   --c-warn: #f59e0b;
-  --c-border: rgba(255, 255, 255, 0.1);
+  --c-border: rgba(255, 255, 255, 0.08);
 }
 
-/* Tema terang */
+/* Tema terang (ala aaPanel) */
 html.light {
   color-scheme: light;
-  --c-bg: #f6f8fb;
+  --c-bg: #f0f2f5;
   --c-surface: #ffffff;
-  --c-surface2: #eef2f7;
-  --c-text: #0f172a;
-  --c-muted: #64748b;
-  --c-accent: #4f46e5;
-  --c-accent-h: #6366f1;
-  --c-ok: #16a34a;
-  --c-err: #dc2626;
-  --c-warn: #d97706;
-  --c-border: rgba(15, 23, 42, 0.12);
+  --c-surface2: #e9edf1;
+  --c-text: #1f2328;
+  --c-muted: #6e7781;
+  --c-accent: #20a53a;
+  --c-accent-h: #1c8f32;
+  --c-ok: #1a7f37;
+  --c-err: #d1242f;
+  --c-warn: #9a6700;
+  --c-border: rgba(31, 35, 40, 0.12);
 }
 
 /* Komponen UI panel — dipakai di HTML statis & template JS (nama class literal) */

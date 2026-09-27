@@ -1,15 +1,16 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Login — Terwo</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <script>try{var t=localStorage.getItem('terwo-theme');if(t==='light')document.documentElement.classList.add('light');}catch(e){}</script>
 <link rel="stylesheet" href="/tailwind.css">
 </head>
 <body class="bg-bg text-text antialiased">
 <div class="relative flex min-h-screen items-center justify-center p-4">
-  <button class="btn-theme btn-icon absolute right-4 top-4" title="Mode Terang" aria-label="Ganti tema"><i data-lucide="sun" class="h-4 w-4"></i></button>
+  <button class="btn-theme btn-icon absolute right-4 top-4" title="Light mode" aria-label="Toggle theme"><i data-lucide="sun" class="h-4 w-4"></i></button>
   <div class="card w-full max-w-[340px]">
     <h1 class="flex items-center justify-center gap-2 text-xl font-bold tracking-tight">
       <i data-lucide="server" class="h-6 w-6 text-accent-h"></i>Terwo
@@ -18,21 +19,21 @@
     <div class="flex flex-col gap-3">
       <input id="u" class="inp" placeholder="Username" autocomplete="username">
       <input id="p" class="inp" type="password" placeholder="Password" autocomplete="current-password">
-      <button id="go" class="btn w-full">Masuk</button>
+      <button id="go" class="btn w-full">Log in</button>
     </div>
     <p id="e" class="err mt-3"></p>
   </div>
 </div>
 <script src="/vendor/lucide.min.js"></script>
 <script>
-// ---------- tema dark/light (tersimpan di localStorage 'terwo-theme') ----------
+// ---------- dark/light theme (stored in localStorage 'terwo-theme') ----------
 function getTheme() {
   try { return localStorage.getItem('terwo-theme') === 'light' ? 'light' : 'dark'; }
   catch (e) { return 'dark'; }
 }
 function updateThemeUI(t) {
   var icon = t === 'light' ? 'moon' : 'sun';
-  var label = t === 'light' ? 'Mode Gelap' : 'Mode Terang';
+  var label = t === 'light' ? 'Dark mode' : 'Light mode';
   document.querySelectorAll('.btn-theme').forEach(function (b) {
     b.innerHTML = '<i data-lucide="' + icon + '" class="h-4 w-4"></i>';
     b.setAttribute('title', label);
@@ -60,8 +61,8 @@ async function login() {
     body: JSON.stringify({ username: u.value, password: p.value }),
   });
   const j = await r.json().catch(() => ({}));
-  if (j.ok) location.href = '/app.html';
-  else e.textContent = j.error || 'Login gagal';
+  if (j.ok) location.href = '/dashboard';
+  else e.textContent = j.error || 'Login failed';
 }
 document.getElementById('go').addEventListener('click', login);
 p.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') login(); });
